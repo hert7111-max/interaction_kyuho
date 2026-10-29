@@ -3,119 +3,114 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { createContext, runInContext } from 'node:vm'
 
-// Run the real handlers and audio synthesis against a virtual clock.
-const listeners = new Map(), controls = new Map(), windows = new Map()
-const drawing = new Proxy({}, { get: (_, key) => key === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}, set: () => true })
-const canvas = { getContext: () => drawing, setPointerCapture() {}, addEventListener: (key, fn) => listeners.set(key, fn) }
-const generic = { innerHTML: '', textContent: '', addEventListener() {} }
-const button = id => ({ ...generic, classList: { toggle() {} }, setAttribute() {}, addEventListener: (name, fn) => controls.set(`${id}:${name}`, fn) })
-const sound = button('sound'), reset = button('reset')
-let time = 0, bufferStarts = 0
-const buffers = [], sources = []
-class AudioContext {
-  sampleRate = 22050
-  state = 'suspended'
-  destination = {}
-  resume() { this.state = 'running'; return Promise.resolve() }
-  createDynamicsCompressor() { return { threshold: {}, ratio: {}, connect() {} } }
-  createGain() { return { gain: {}, connect() {} } }
-  createBuffer(_, length) { const data = new Float32Array(length); buffers.push(data); return { getChannelData: () => data } }
-  createBufferSource() { const source = { connect() {}, disconnect() {}, start() { bufferStarts++ }, onended() {} }; sources.push(source); return source }
+// Exercise the real SVG handlers with a virtual clock, including gaze-lock timing.
+let time = 0
+const elements = new Map(), windowEvents = new Map(), documentEvents = new Map()
+const makeElement = () => {
+  const classes = new Set()
+  return { attrs: new Map(), listeners: new Map(), textContent: '', innerHTML: '', style: { setProperty() {} }, classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) },
+    setAttribute(name, value) { this.attrs.set(name, value) }, addEventListener(name, fn) { this.listeners.set(name, fn) },
+    getBoundingClientRect() { return { left: 400, top: 180, width: 480, height: 480 } } }
 }
+const element = id => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id) }
 const sandbox = {
-  document: { activeElement: canvas, querySelector: id => ({ '#bubbles': canvas, '#sound': sound, '#reset': reset }[id] ?? generic), createElement: () => ({ getContext: () => drawing }), addEventListener() {} },
-  innerWidth: 1280, innerHeight: 800, devicePixelRatio: 2,
-  performance: { now: () => time }, matchMedia: () => ({ matches: false }),
-  addEventListener: (key, fn) => windows.set(key, fn), requestAnimationFrame() {}, AudioContext, Math,
+  document: { querySelector: element, documentElement: element('root'), hidden: false, addEventListener: (name, fn) => documentEvents.set(name, fn) },
+  performance: { now: () => time }, matchMedia: () => ({ matches: false }), requestAnimationFrame() {}, Math,
+  addEventListener: (name, fn) => windowEvents.set(name, fn),
 }
 sandbox.window = sandbox
 const context = createContext(sandbox)
 const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8').replace("import './style.css'", '')
 runInContext(stripTypeScriptTypes(source, { mode: 'strip' }), context)
-const inspect = expression => runInContext(expression, context)
-const ready = () => inspect('bubbles.forEach(b => b.poppedAt = -Infinity); drops = []; labels = []; popCount = 0; pointers.clear()')
-const point = i => inspect(`({x: bubbles[${i}].x, y: bubbles[${i}].y})`)
-const pointer = (name, p, id = 1, extra = {}) => listeners.get(name)({ clientX: p.x, clientY: p.y, pointerId: id, pointerType: 'mouse', button: 0, preventDefault() {}, ...extra })
-const endSounds = () => { sources.splice(0).forEach(s => s.onended()) }
+const inspect = value => runInContext(value, context)
+const state = () => sandbox.__slowbro
+const frames = (duration, interval = 1000 / 60) => { const end = time + duration; while (time < end) { time = Math.min(end, time + interval); inspect('animate(performance.now())') } }
+const pointer = (name, x, y, extra = {}) => windowEvents.get(name)({ clientX: x, clientY: y, pointerType: 'mouse', button: 0, target: { closest: () => null }, preventDefault() {}, ...extra })
+const reset = () => { element('#reset').listeners.get('click')(); frames(800) }
 
-const first = point(0)
-pointer('pointerdown', first)
-assert.equal(sandbox.__bubblePop.pops, 1, 'Click pops immediately')
-assert.equal(sandbox.__bubblePop.activePointers, 1)
-pointer('pointerup', first)
-assert.equal(sandbox.__bubblePop.pops, 1, 'Release does not duplicate a pop')
-pointer('pointerdown', first); pointer('pointerup', first)
-assert.equal(sandbox.__bubblePop.pops, 1, 'Deflated bubble cannot pop twice')
-assert.equal(inspect('inflation(bubbles[0], 0)'), 0)
-time = 2400
-assert.ok(inspect('inflation(bubbles[0], performance.now())') > 0)
-assert.ok(inspect('inflation(bubbles[0], performance.now())') < .96)
-time = 6000
-assert.equal(inspect('inflation(bubbles[0], performance.now())'), 1)
-pointer('pointerdown', first); pointer('pointerup', first)
-assert.equal(sandbox.__bubblePop.pops, 2, 'Reinflated bubble can pop again')
-console.log('✓ Click pops once, stays deflated, gradually regrows, then becomes poppable again')
+pointer('pointermove', 1080, 100)
+const target = { ...state().target }
+assert.ok(target.x > 0 && target.y < 0)
+frames(16)
+assert.ok(state().gaze.x > 0 && state().gaze.x < target.x, 'Face eases instead of snapping')
+assert.ok(state().pupils.x > state().gaze.x, 'Eyes lead the head')
+frames(900)
+assert.ok(Math.abs(state().gaze.x - target.x) < .01)
+assert.ok(Math.abs(state().gaze.y - target.y) < .01)
+assert.ok(element('#head').attrs.get('transform').includes('rotate('))
+assert.ok(element('#features').attrs.get('transform').includes('translate('))
+console.log('✓ Eyes and facial features follow the pointer smoothly; eyes lead the head')
 
-ready(); endSounds()
-const cols = inspect('bubbles.filter(b => b.y === bubbles[0].y).length')
-pointer('pointerdown', point(0))
-pointer('pointermove', point(cols - 1))
-assert.equal(sandbox.__bubblePop.pops, cols, 'Fast drag hits every crossed bubble')
-pointer('pointermove', point(cols * 2 - 1))
-assert.equal(sandbox.__bubblePop.pops, cols + 1, 'Drag follows corners')
-pointer('pointerup', point(cols * 2 - 1))
-assert.equal(sandbox.__bubblePop.activePointers, 0)
-console.log('✓ Fast drags pop every bubble along the actual path before release')
-
-ready(); endSounds()
-pointer('pointerdown', point(0), 11, { pointerType: 'touch' })
-pointer('pointerdown', point(cols * 2), 12, { pointerType: 'touch' })
-assert.equal(sandbox.__bubblePop.activePointers, 2)
-pointer('pointermove', point(cols * 2 + 2), 12, { pointerType: 'touch' })
-pointer('pointercancel', point(0), 11)
-pointer('lostpointercapture', point(cols * 2 + 2), 12)
-assert.equal(sandbox.__bubblePop.activePointers, 0)
-assert.equal(sandbox.__bubblePop.pops, 4)
-console.log('✓ Multitouch paths stay independent and cancellation clears gestures')
-
-assert.equal(buffers.length, 3)
-assert.ok(new Set(buffers.map(b => b.length)).size === 3)
-for (const data of buffers) {
-  assert.ok(data.some(v => Math.abs(v) > .1), 'Sound contains audible samples')
-  assert.ok(data.every(v => Number.isFinite(v) && Math.abs(v) <= 1), 'Audio stays finite and unclipped')
-  assert.ok(Math.abs(data.at(-1)) < .01, 'Sound fades out')
+for (const [x, y] of [[-10000, -10000], [10000, -10000], [10000, 10000], [-10000, 10000]]) {
+  pointer('pointermove', x, y); frames(600)
+  assert.ok(Math.hypot(state().target.x, state().target.y) <= 1.00001)
+  const { x: px, y: py } = state().pupils
+  assert.ok((px * 15 / 25) ** 2 + (py * 25 / 44) ** 2 < 1, 'Pupils stay inside eye whites')
 }
-ready(); endSounds()
-for (let i = 0; i < 120; i++) { inspect('bubbles[0].poppedAt = -Infinity'); pointer('pointerdown', first); pointer('pointerup', first); endSounds() }
-assert.ok(sandbox.__bubblePop.soundPlays.every(n => n > 0), 'All three variants play')
-const beforeMute = bufferStarts
-controls.get('sound:click')()
-ready(); pointer('pointerdown', first); pointer('pointerup', first)
-assert.equal(bufferStarts, beforeMute)
-assert.equal(sandbox.__bubblePop.pops, 1, 'Mute keeps visual interaction working')
-controls.get('sound:click')()
-console.log('✓ Three distinct sounds play randomly; mute stops audio and preserves interaction')
+console.log('✓ Gaze stays bounded at all four screen corners')
 
-ready()
-listeners.get('keydown')({ key: 'ArrowRight', preventDefault() {} })
-listeners.get('keydown')({ key: ' ', preventDefault() {}, repeat: false })
-assert.equal(sandbox.__bubblePop.pops, 1)
-assert.equal(inspect('bubbles[1].poppedAt'), time)
-controls.get('reset:click')()
-assert.equal(sandbox.__bubblePop.pops, 0)
-time += 4500
-assert.equal(sandbox.__bubblePop.ready, sandbox.__bubblePop.bubbles)
-console.log('✓ Keyboard navigation and reset work')
+reset()
+pointer('pointerdown', 1050, 420)
+assert.equal(state().winkSide, 1)
+assert.equal(state().locked, true)
+frames(180)
+assert.ok(state().rightOpen < .08)
+assert.equal(state().leftOpen, 1, 'Only one eye closes for a wink')
+pointer('pointermove', 0, 420)
+assert.ok(state().target.x > 0, 'Wink initially holds the clicked point')
+frames(300)
+assert.ok(state().target.x < 0, 'Tracking resumes after a short hold')
+frames(500)
+assert.equal(state().rightOpen, 1)
+assert.equal(state().leftOpen, 1)
+assert.equal(element('#orb').classList.contains('is-winking'), false)
+pointer('pointerdown', 0, 420); frames(180)
+assert.equal(state().winkSide, 0)
+assert.ok(state().leftOpen < .08)
+assert.equal(state().rightOpen, 1)
+// Repeated clicks must retarget and restart the wink immediately.
+pointer('pointerdown', 1100, 420); frames(180)
+assert.equal(state().winkSide, 1)
+assert.ok(state().rightOpen < .08)
+assert.equal(state().leftOpen, 1)
+console.log('✓ Click looks at that point and winks; repeated clicks and gaze locking behave correctly')
 
-for (const [w, h] of [[390, 844], [320, 568], [844, 390], [1920, 1080]]) {
-  sandbox.innerWidth = w; sandbox.innerHeight = h; windows.get('resize')()
-  assert.ok(inspect('bubbles.every(b => b.x-b.radius >= 0 && b.x+b.radius <= width && b.y-b.radius >= 0 && b.y+b.radius <= height)'))
-  inspect('draw(performance.now())')
-}
-ready()
-for (let i = 0; i < 100; i++) inspect('bubbles[0].poppedAt = -Infinity; pop(bubbles[0], performance.now())')
-assert.ok(sandbox.__bubblePop.particles <= 700)
-assert.ok(inspect('voices <= 24'))
-time += 1000; inspect('draw(performance.now())')
-assert.equal(sandbox.__bubblePop.particles, 0)
-console.log('✓ Mobile, landscape, and desktop grids fit; effects and concurrent sounds stay bounded')
+reset()
+pointer('pointerdown', 300, 600, { pointerType: 'touch' })
+assert.equal(state().touching, true)
+frames(120)
+assert.ok(state().target.x < 0 && state().target.y > 0)
+pointer('pointermove', 1000, 200, { pointerType: 'touch' })
+frames(400)
+assert.ok(state().target.x > 0 && state().target.y < 0)
+pointer('pointerup', 1000, 200, { pointerType: 'touch' })
+frames(2900)
+assert.ok(Math.hypot(state().gaze.x, state().gaze.y) < .001, 'Touch returns to center after release')
+pointer('pointerdown', 0, 0, { pointerType: 'touch' })
+windowEvents.get('pointercancel')()
+assert.equal(state().touching, false)
+assert.equal(state().target.x, 0)
+console.log('✓ Touch looks and winks, follows finger movement, and returns to center')
+
+reset()
+const key = key => element('#orb').listeners.get('keydown')({ key, repeat: false, preventDefault() {} })
+key('ArrowRight'); key('ArrowUp')
+assert.ok(state().target.x > 0 && state().target.y < 0)
+const before = state().winkCount
+key('Enter'); assert.equal(state().winkCount, before + 1)
+key('Home'); assert.equal(state().target.x, 0)
+const after = state().winkCount
+pointer('pointerdown', 100, 100, { button: 2 })
+pointer('pointerdown', 100, 100, { target: { closest: () => ({}) } })
+assert.equal(state().winkCount, after, 'Secondary clicks and controls do not cause duplicate winks')
+element('#wink').listeners.get('click')(); assert.equal(state().winkCount, after + 1)
+windowEvents.get('blur')(); assert.equal(state().target.x, 0)
+console.log('✓ Keyboard navigation, wink control, reset, and blur work without duplicate clicks')
+
+reset()
+inspect('nextBlink = performance.now()'); frames(50)
+assert.ok(state().leftOpen < .1 && state().rightOpen < .1)
+frames(250)
+assert.equal(state().leftOpen, 1); assert.equal(state().rightOpen, 1)
+for (const [id, node] of elements) for (const value of node.attrs.values()) assert.ok(!/NaN|Infinity/.test(value), `${id} has finite transforms`)
+console.log('✓ Automatic blinks reopen cleanly and all SVG transforms stay finite')

@@ -1,283 +1,218 @@
 import './style.css'
 
-const soundIcon = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="sound-cross" d="m16 9 5 6m0-6-5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`
+// The reference face is drawn in independent SVG layers so eyes, muzzle,
+// ears, and the head can follow the same point at different depths.
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<main class="playground">
-  <canvas id="bubbles" tabindex="0" role="application" aria-label="빨간 뽁뽁이 놀이터. 클릭, 터치하거나 누른 채 드래그해 터뜨리세요. 키보드는 방향키로 이동하고 스페이스 또는 엔터로 터뜨립니다."></canvas>
+<main class="scene" id="scene">
   <header class="header">
-    <div class="brand"><h1>뽁<span>.</span></h1><span class="brand-note">LITTLE POP, BIG RELIEF.</span></div>
-    <p class="header-note">아무 생각 없이, 마음껏.</p>
-    <div class="controls">
-      <button id="sound" class="icon-button" type="button" aria-label="소리 끄기" aria-pressed="true" title="소리 끄기">${soundIcon}</button>
-      <button id="reset" class="icon-button" type="button" aria-label="모두 다시 부풀리기" title="모두 다시 부풀리기"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.7 7M4 4v6h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </div>
+    <a class="wordmark" href="./" aria-label="느릿, 처음으로">느릿<span>∙</span></a>
+    <span class="edition">A LITTLE EYE CONTACT</span>
+    <button id="reset" class="reset" type="button" aria-label="정면 바라보기"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.7 7M4 4v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>다시 정면</span></button>
   </header>
+  <section class="portrait" aria-label="포인터를 따라 바라보는 야도란">
+    <div class="orb-wrap" id="orb" tabindex="0" role="button" aria-label="야도란에게 윙크 부탁하기. 방향키로 시선을 옮기고 스페이스 또는 엔터로 윙크하세요.">
+      <div class="aura" aria-hidden="true"></div>
+      <svg class="character" viewBox="0 0 600 600" aria-hidden="true">
+        <defs>
+          <radialGradient id="glass" cx="31%" cy="23%" r="85%"><stop stop-color="#eed8e7" stop-opacity=".16"/><stop offset=".5" stop-color="#ba7194" stop-opacity=".06"/><stop offset=".85" stop-color="#784b70" stop-opacity=".1"/><stop offset="1" stop-color="#e6adc9" stop-opacity=".26"/></radialGradient>
+          <radialGradient id="pink" cx="33%" cy="21%" r="85%"><stop stop-color="#ffc3d4"/><stop offset=".34" stop-color="#f0a0ba"/><stop offset=".69" stop-color="#dc799f"/><stop offset="1" stop-color="#a94e7a"/></radialGradient>
+          <radialGradient id="ear" cx="35%" cy="25%" r="80%"><stop stop-color="#ffc2d0"/><stop offset=".6" stop-color="#e894ae"/><stop offset="1" stop-color="#b75a87"/></radialGradient>
+          <linearGradient id="cream" x1="0" y1="0" x2=".2" y2="1"><stop stop-color="#fffee9"/><stop offset=".5" stop-color="#f5f1cd"/><stop offset="1" stop-color="#d6cc9d"/></linearGradient>
+          <linearGradient id="chin" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f8f0c8"/><stop offset="1" stop-color="#d6c393"/></linearGradient>
+          <linearGradient id="mouth" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#542c49"/><stop offset="1" stop-color="#9f4967"/></linearGradient>
+          <linearGradient id="tongue" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fa9bb7"/><stop offset="1" stop-color="#da759c"/></linearGradient>
+          <linearGradient id="rim" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffe2ef" stop-opacity=".75"/><stop offset=".25" stop-color="#f7b6d6" stop-opacity=".09"/><stop offset=".6" stop-color="#ec9cc9" stop-opacity=".12"/><stop offset="1" stop-color="#fac6e2" stop-opacity=".5"/></linearGradient>
+          <radialGradient id="reflection"><stop stop-color="#fff4fb" stop-opacity=".45"/><stop offset="1" stop-color="#fff4fb" stop-opacity="0"/></radialGradient>
+          <clipPath id="sphere-clip"><circle cx="300" cy="300" r="267"/></clipPath>
+          <clipPath id="mouth-clip"><path d="M184 361Q300 339 423 359Q408 444 307 448Q218 446 184 361Z"/></clipPath>
+        </defs>
+        <circle cx="300" cy="300" r="268" fill="#21161f"/>
+        <circle cx="300" cy="300" r="267" fill="url(#glass)"/>
+        <g clip-path="url(#sphere-clip)">
+          <g id="head">
+            <g class="ears" stroke="#a95d80" stroke-width="3">
+              <ellipse cx="174" cy="177" rx="49" ry="55" transform="rotate(-30 174 177)" fill="url(#ear)"/>
+              <ellipse cx="426" cy="177" rx="49" ry="55" transform="rotate(30 426 177)" fill="url(#ear)"/>
+              <path d="M169 196C141 185 153 154 169 157C185 155 190 173 182 183M431 196C459 185 447 154 431 157C415 155 410 173 418 183" fill="none" stroke-linecap="round"/>
+            </g>
+            <path d="M157 303C160 219 202 160 297 160C395 158 443 218 448 310L460 401C473 487 398 548 300 551C200 551 126 492 140 407Z" fill="url(#pink)" stroke="#ad5c81" stroke-width="2.5"/>
+            <ellipse cx="237" cy="201" rx="56" ry="19" transform="rotate(-21 237 201)" fill="#ffe5ec" opacity=".23"/>
+            <path d="M172 308Q159 370 167 398" fill="none" stroke="#ffd3df" stroke-width="8" stroke-linecap="round" opacity=".14"/>
+            <g id="features">
+              <g transform="translate(230 284) rotate(10)">
+                <g id="left-eye"><ellipse rx="32" ry="53" fill="#fffef5" stroke="#705360" stroke-width="3"/><ellipse cx="-9" cy="-12" rx="11" ry="25" fill="#fff" opacity=".7"/><g id="left-pupil"><ellipse rx="4.4" ry="8" fill="#39313e"/><circle cx="-1.2" cy="-2.7" r="1.4" fill="#fff"/></g></g>
+                <path id="left-closed" d="M-27 6Q-3-12 24 2" fill="none" stroke="#754457" stroke-width="4" stroke-linecap="round" opacity="0"/>
+              </g>
+              <g transform="translate(371 284) rotate(-10)">
+                <g id="right-eye"><ellipse rx="32" ry="53" fill="#fffef5" stroke="#705360" stroke-width="3"/><ellipse cx="-9" cy="-12" rx="11" ry="25" fill="#fff" opacity=".7"/><g id="right-pupil"><ellipse rx="4.4" ry="8" fill="#39313e"/><circle cx="-1.2" cy="-2.7" r="1.4" fill="#fff"/></g></g>
+                <path id="right-closed" d="M-24 2Q3-12 27 6" fill="none" stroke="#754457" stroke-width="4" stroke-linecap="round" opacity="0"/>
+              </g>
+              <g id="muzzle">
+                <path d="M169 351C171 321 226 311 294 313C366 310 425 323 438 348C451 380 398 466 307 471C224 472 164 401 169 351Z" fill="url(#chin)" stroke="#9d8b70" stroke-width="3"/>
+                <path d="M184 361Q300 339 423 359Q408 444 307 448Q218 446 184 361Z" fill="url(#mouth)" stroke="#785866" stroke-width="2.5"/>
+                <g clip-path="url(#mouth-clip)"><ellipse cx="309" cy="446" rx="78" ry="39" fill="url(#tongue)"/><path d="M209 357L220 382Q226 389 231 358M386 357L393 379Q399 388 406 359" fill="#fffdee" stroke="#8f8073" stroke-width="2" stroke-linejoin="round"/></g>
+                <path d="M161 342C169 316 209 315 247 295Q292 274 336 293C373 308 421 310 438 339C463 375 400 380 362 372C328 365 282 365 245 374C201 383 150 371 161 342Z" fill="url(#cream)" stroke="#a99d80" stroke-width="3"/>
+                <path d="M180 336C207 317 232 319 253 306" fill="none" stroke="#fffef3" stroke-width="6" stroke-linecap="round" opacity=".65"/>
+                <path d="m274 327 5 7m43-8-5 7" stroke="#80745d" stroke-width="3.7" stroke-linecap="round"/>
+                <ellipse id="left-blush" cx="188" cy="382" rx="18" ry="9" fill="#f3a1ad" opacity=".33"/><ellipse id="right-blush" cx="414" cy="382" rx="18" ry="9" fill="#f3a1ad" opacity=".33"/>
+              </g>
+            </g>
+          </g>
+          <ellipse cx="180" cy="130" rx="90" ry="45" fill="url(#reflection)" transform="rotate(-37 180 130)"/>
+          <path d="M74 248C87 167 137 103 205 78" fill="none" stroke="#fff2fc" stroke-width="5" stroke-linecap="round" opacity=".33"/>
+          <path d="M83 219C91 189 103 168 119 146" fill="none" stroke="#fff5fc" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+          <path d="M431 513Q494 472 518 418" fill="none" stroke="#ffbddf" stroke-width="3" stroke-linecap="round" opacity=".2"/>
+        </g>
+        <circle cx="300" cy="300" r="268" fill="none" stroke="url(#rim)" stroke-width="2"/>
+        <circle cx="300" cy="300" r="262" fill="none" stroke="#f8c4dc" stroke-opacity=".06"/>
+      </svg>
+      <span class="spark spark-one" aria-hidden="true">✦</span><span class="spark spark-two" aria-hidden="true">✧</span>
+    </div>
+    <div class="orb-shadow" aria-hidden="true"></div>
+    <div class="caption"><span class="character-name">SLOWBRO</span><span class="caption-line"></span><span id="mood">조금 느려도, 널 보고 있어.</span></div>
+  </section>
   <footer class="footer">
-    <span class="regrow"><i></i>다시 부푸는 중에도, 잠깐 쉬어가요.</span>
-    <p class="instruction"><span class="mouse-icon">↗</span> 클릭 · 터치 · 드래그 <span class="divider"></span><span class="instruction-light">작은 뽁, 가벼운 마음</span></p>
-    <div class="counter"><span id="count">000</span><span class="count-label">POPS</span></div>
+    <span class="footer-note"><i></i>서두르지 않아도 괜찮아.</span>
+    <div class="instructions"><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 3 10 7-5 1-2 5-3-13Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>움직이면 눈맞춤</span><span class="separator"></span><button id="wink" type="button"><span class="wink-icon">◡</span>클릭하면 윙크</button></div>
+    <span class="footer-edition">TAKE IT SLOW. ↗</span>
   </footer>
   <span class="sr-only" id="announcement" role="status" aria-live="polite"></span>
 </main>`
 
-const canvas = document.querySelector<HTMLCanvasElement>('#bubbles')!
-const ctx = canvas.getContext('2d')!
-const soundButton = document.querySelector<HTMLButtonElement>('#sound')!
-const countElement = document.querySelector('#count')!
+const orb = document.querySelector<HTMLDivElement>('#orb')!
+const head = document.querySelector<SVGGElement>('#head')!
+const features = document.querySelector<SVGGElement>('#features')!
+const muzzle = document.querySelector<SVGGElement>('#muzzle')!
+const mood = document.querySelector('#mood')!
+const eyes = ['left', 'right'].map(side => ({ eye: document.querySelector<SVGGElement>(`#${side}-eye`)!, pupil: document.querySelector<SVGGElement>(`#${side}-pupil`)!, closed: document.querySelector<SVGPathElement>(`#${side}-closed`)! }))
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
-type Point = { x: number; y: number }
-type Bubble = Point & { radius: number; poppedAt: number; delay: number; face: number; phase: number }
-type Drop = Point & { vx: number; vy: number; radius: number; born: number; duration: number; heart: boolean; color: string; rotation: number }
-type PopLabel = Point & { born: number; text: string; rotation: number }
-let width = innerWidth, height = innerHeight
-let bubbles: Bubble[] = []
-let drops: Drop[] = []
-let labels: PopLabel[] = []
-let popCount = 0
-let muted = false
-let hover: Point | null = null
-let keyboardIndex = 0
-let keyboardVisible = false
+const WINK_DURATION = 920
+let target = { x: 0, y: 0 }, gaze = { x: 0, y: 0 }, pupils = { x: 0, y: 0 }
+let winkAt = -Infinity, winkSide = 1, winkCount = 0
+let blinkAt = -Infinity, nextBlink = performance.now() + 4200
+let lockUntil = 0, returnAt = Infinity
+let pendingTarget = { x: 0, y: 0 }
 let lastFrame = performance.now()
-const pointers = new Map<number, Point>()
-const random = (a: number, b: number) => a + Math.random() * (b - a)
-const TAU = Math.PI * 2
-const REINFLATE_MS = 3400
-let audio: AudioContext | null = null
-let output: DynamicsCompressorNode | null = null
-let sounds: AudioBuffer[] = []
-let voices = 0
-const soundPlays = [0, 0, 0]
+let leftOpen = 1, rightOpen = 1
+let touching = false
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 
-// Three original pop sounds, generated locally: crisp, squishy, and bubbly.
-function prepareSound() {
-  if (muted) return
-  try {
-    if (!audio) {
-      audio = new AudioContext()
-      output = audio.createDynamicsCompressor()
-      output.threshold.value = -16; output.ratio.value = 8
-      const volume = audio.createGain(); volume.gain.value = .48
-      output.connect(volume); volume.connect(audio.destination)
-      sounds = [0, 1, 2].map(kind => {
-        const duration = [.16, .23, .3][kind]!
-        const buffer = audio!.createBuffer(1, Math.ceil(audio!.sampleRate * duration), audio!.sampleRate)
-        const data = buffer.getChannelData(0)
-        let phase = 0, filtered = 0
-        for (let i = 0; i < data.length; i++) {
-          const t = i / audio!.sampleRate
-          const noise = Math.random() * 2 - 1
-          filtered = filtered * .67 + noise * .33
-          const frequency = kind === 0 ? 75 + 700 * Math.exp(-t * 60) : kind === 1 ? 55 + 420 * Math.exp(-t * 27) : 100 + 930 * Math.exp(-t * 22)
-          phase += TAU * frequency / audio!.sampleRate
-          const attack = Math.min(1, t / .002)
-          const envelope = Math.exp(-t * [36, 23, 20][kind]!) * attack
-          const body = Math.sin(phase) * (kind === 1 ? .84 : .68)
-          const snap = (kind === 0 ? noise : filtered) * Math.exp(-t * 95) * .45
-          const bubble = kind === 2 ? Math.sin(phase * 1.52) * .18 * Math.exp(-t * 24) : 0
-          data[i] = Math.tanh((body + snap + bubble) * 1.35) * envelope * .8
-        }
-        return buffer
-      })
-    }
-    if (audio.state === 'suspended') void audio.resume().catch(() => {})
-  } catch { /* Visual interaction remains available without audio support. */ }
+function pointToGaze(x: number, y: number) {
+  const rect = orb.getBoundingClientRect()
+  const dx = (x - rect.left - rect.width / 2) / Math.max(1, rect.width * .82)
+  const dy = (y - rect.top - rect.height / 2) / Math.max(1, rect.height * .82)
+  // A circular limit keeps the pupils safely inside the eye whites at corners.
+  const distance = Math.hypot(dx, dy)
+  const scale = distance > 1 ? 1 / distance : 1
+  return { x: dx * scale, y: dy * scale }
 }
-function playPop() {
-  if (muted || !audio || !output || !sounds.length || voices >= 24) return
-  const kind = Math.floor(Math.random() * 3)
-  const voice = audio.createBufferSource()
-  voice.buffer = sounds[kind]!
-  voice.connect(output)
-  voices++; soundPlays[kind]++
-  voice.onended = () => { voices--; voice.disconnect() }
-  voice.start()
+function lookAt(x: number, y: number, now = performance.now()) {
+  pendingTarget = pointToGaze(x, y)
+  if (now >= lockUntil) target = { ...pendingTarget }
+  returnAt = Infinity
+}
+function wink(now = performance.now()) {
+  winkAt = now
+  winkSide = target.x < -.12 ? 0 : 1
+  winkCount++
+  lockUntil = now + 440
+  // Do not let an automatic blink close the other eye during the wink.
+  blinkAt = -Infinity; nextBlink = now + 3500 + Math.random() * 2500
+  mood.textContent = '너한테만, 찡긋.'
+  orb.classList.add('is-winking')
+  document.querySelector('#announcement')!.textContent = '야도란이 바라보며 윙크해요.'
+}
+function center() {
+  target = { x: 0, y: 0 }; pendingTarget = { ...target }
+  lockUntil = 0; returnAt = Infinity; touching = false
+}
+function eyelid(now: number, started: number, duration: number, hold: number) {
+  const p = (now - started) / duration
+  if (p < 0 || p >= 1) return 1
+  if (p < .15) return 1 - Math.sin(p / .15 * Math.PI / 2) * .97
+  if (p < hold) return .03
+  const t = (p - hold) / (1 - hold)
+  return .03 + .97 * (t * t * (3 - 2 * t))
 }
 
-function ellipse(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, fill: string) {
-  c.fillStyle = fill; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fill()
-}
-// Pre-render the glossy surface so even a screen full of bubbles stays light.
-const sprites = Array.from({ length: 4 }, (_, face) => {
-  const sprite = document.createElement('canvas'); sprite.width = sprite.height = 240
-  const c = sprite.getContext('2d')!
-  c.translate(120, 120)
-  ellipse(c, 0, 9, 92, 88, '#35050b')
-  const edge = c.createRadialGradient(-20, -33, 5, 0, 0, 94)
-  edge.addColorStop(0, '#ff7277'); edge.addColorStop(.35, '#ff3447'); edge.addColorStop(.72, '#e61632'); edge.addColorStop(.94, '#990d25'); edge.addColorStop(1, '#ff4255')
-  c.fillStyle = edge; c.beginPath(); c.arc(0, 0, 90, 0, TAU); c.fill()
-  const shine = c.createRadialGradient(-27, -40, 0, -20, -27, 60)
-  shine.addColorStop(0, '#ffc1bc8c'); shine.addColorStop(.6, '#ffafaa18'); shine.addColorStop(1, '#ff9c9c00')
-  c.fillStyle = shine; c.beginPath(); c.arc(0, 0, 88, 0, TAU); c.fill()
-  c.save(); c.translate(-30, -47); c.rotate(-.5)
-  ellipse(c, 0, 0, 23, 10, '#ffe9dfb8'); ellipse(c, 33, -1, 5, 4, '#ffe9df80'); c.restore()
-  c.strokeStyle = '#ff6c7777'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 82, .2, 1.4); c.stroke()
-  // Tiny cocoa eyes, rosy cheeks, and four contented expressions.
-  ellipse(c, -31, 22, 10, 5.5, '#ff92916b'); ellipse(c, 31, 22, 10, 5.5, '#ff92916b')
-  c.strokeStyle = '#550b1d'; c.fillStyle = '#550b1d'; c.lineWidth = 4.4; c.lineCap = 'round'
-  for (const x of [-20, 20]) {
-    if (face === 1 || (face === 3 && x > 0)) { c.beginPath(); c.moveTo(x - 5, 13); c.quadraticCurveTo(x, 6, x + 5, 13); c.stroke() }
-    else ellipse(c, x, 12, 3.8, 5.7, '#550b1d')
-  }
-  if (face === 2) ellipse(c, 0, 27, 4.2, 5.5, '#550b1d')
-  else { c.beginPath(); c.moveTo(-7, 26); c.quadraticCurveTo(0, 35, 7, 26); c.stroke() }
-  return sprite
+window.addEventListener('pointermove', event => {
+  if (event.pointerType === 'touch' && !touching) return
+  lookAt(event.clientX, event.clientY)
 })
-
-function resize() {
-  width = innerWidth; height = innerHeight
-  const dpr = Math.min(devicePixelRatio || 1, 2)
-  canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr)
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  const columns = Math.max(3, Math.round(width / (width < 600 ? 83 : 112)))
-  const gapX = width / columns
-  const top = width < 600 ? 100 : 124
-  const bottom = width < 600 ? 100 : 102
-  const available = Math.max(60, height - top - bottom)
-  const rows = Math.max(1, Math.round(available / gapX))
-  const gapY = available / rows
-  const radius = Math.min(gapX, gapY) * .355
-  const previous = bubbles
-  bubbles = Array.from({ length: columns * rows }, (_, i) => ({ x: gapX * (i % columns + .5), y: top + gapY * (Math.floor(i / columns) + .5), radius, poppedAt: previous[i]?.poppedAt ?? -Infinity, delay: previous[i]?.delay ?? 1400, face: previous[i]?.face ?? Math.floor(random(0, 4)), phase: i * 1.76 }))
-  keyboardIndex = Math.min(keyboardIndex, bubbles.length - 1)
-  pointers.clear(); hover = null
-}
-function inflation(bubble: Bubble, now: number) {
-  const progress = Math.max(0, Math.min(1, (now - bubble.poppedAt - bubble.delay) / REINFLATE_MS))
-  return progress * progress * (3 - 2 * progress)
-}
-function pop(bubble: Bubble, now: number) {
-  if (inflation(bubble, now) < .96) return
-  bubble.poppedAt = now; bubble.delay = random(1100, 1700)
-  popCount++; countElement.textContent = String(popCount).padStart(3, '0')
-  playPop()
-  const amount = reducedMotion.matches ? 5 : 17
-  for (let i = 0; i < amount; i++) {
-    const angle = TAU * i / amount + random(-.18, .18)
-    const speed = random(70, 230) * bubble.radius / 36
-    drops.push({ x: bubble.x, y: bubble.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 28, radius: random(2.8, 7), born: now, duration: random(400, 780), heart: i % 7 === 0, color: ['#ff2847', '#ff4a61', '#bb1031', '#ff7b8e'][i % 4]!, rotation: random(-.8, .8) })
-  }
-  if (drops.length > 700) drops.splice(0, drops.length - 700)
-  labels.push({ x: bubble.x, y: bubble.y - bubble.radius * .3, born: now, text: ['뽁!', '팡!', '뽀독!'][Math.floor(random(0, 3))]!, rotation: random(-.2, .2) })
-  if (labels.length > 32) labels.shift()
-}
-function popPath(from: Point, to: Point) {
-  const dx = to.x - from.x, dy = to.y - from.y
-  const lengthSquared = dx * dx + dy * dy
-  const now = performance.now()
-  for (const bubble of bubbles) {
-    const t = lengthSquared ? Math.max(0, Math.min(1, ((bubble.x - from.x) * dx + (bubble.y - from.y) * dy) / lengthSquared)) : 0
-    const distance = Math.hypot(bubble.x - from.x - t * dx, bubble.y - from.y - t * dy)
-    if (distance <= bubble.radius * 1.08) pop(bubble, now)
-  }
-}
-canvas.addEventListener('pointerdown', event => {
+window.addEventListener('pointerdown', event => {
   if (event.pointerType === 'mouse' && event.button !== 0) return
-  event.preventDefault(); prepareSound(); keyboardVisible = false
-  canvas.setPointerCapture(event.pointerId)
-  const point = { x: event.clientX, y: event.clientY }
-  pointers.set(event.pointerId, point); popPath(point, point)
+  const element = event.target as Element | null
+  if (element?.closest('button, a')) return
+  if (event.pointerType === 'touch') { touching = true; event.preventDefault() }
+  // A new click must override any previous wink's gaze lock.
+  lockUntil = 0; lookAt(event.clientX, event.clientY); wink()
 })
-canvas.addEventListener('pointermove', event => {
-  hover = event.pointerType === 'mouse' ? { x: event.clientX, y: event.clientY } : null
-  const previous = pointers.get(event.pointerId)
-  if (!previous) return
-  const samples = event.getCoalescedEvents?.() ?? []
-  let from = previous
-  for (const sample of [...samples, event]) {
-    const to = { x: sample.clientX, y: sample.clientY }; popPath(from, to); from = to
+window.addEventListener('pointerup', event => {
+  if (event.pointerType === 'touch') { touching = false; returnAt = performance.now() + 1900 }
+})
+window.addEventListener('pointercancel', () => { touching = false; center() })
+document.documentElement.addEventListener('pointerleave', () => { if (!touching) returnAt = performance.now() + 550 })
+window.addEventListener('blur', center)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) center()
+  lastFrame = performance.now(); nextBlink = lastFrame + 4000
+})
+document.querySelector('#reset')!.addEventListener('click', () => { center(); winkAt = -Infinity; mood.textContent = '조금 느려도, 널 보고 있어.'; orb.classList.remove('is-winking') })
+document.querySelector('#wink')!.addEventListener('click', () => wink())
+orb.addEventListener('click', event => { if (event.detail === 0) wink() })
+orb.addEventListener('keydown', event => {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'Home'].includes(event.key)) return
+  event.preventDefault()
+  if (event.key === 'Home') center()
+  else if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) wink()
+  else {
+    const step = .25
+    if (event.key === 'ArrowLeft') pendingTarget.x -= step
+    if (event.key === 'ArrowRight') pendingTarget.x += step
+    if (event.key === 'ArrowUp') pendingTarget.y -= step
+    if (event.key === 'ArrowDown') pendingTarget.y += step
+    const length = Math.hypot(pendingTarget.x, pendingTarget.y)
+    if (length > 1) { pendingTarget.x /= length; pendingTarget.y /= length }
+    target = { ...pendingTarget }; returnAt = Infinity; lockUntil = 0
   }
-  pointers.set(event.pointerId, from)
-})
-canvas.addEventListener('pointerup', event => {
-  const previous = pointers.get(event.pointerId)
-  if (previous) popPath(previous, { x: event.clientX, y: event.clientY })
-  pointers.delete(event.pointerId)
-})
-for (const name of ['pointercancel', 'lostpointercapture'] as const) canvas.addEventListener(name, event => pointers.delete(event.pointerId))
-canvas.addEventListener('pointerleave', () => { hover = null })
-canvas.addEventListener('contextmenu', event => event.preventDefault())
-canvas.addEventListener('keydown', event => {
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter'].includes(event.key)) return
-  event.preventDefault(); keyboardVisible = true
-  const columns = Math.max(1, bubbles.filter(b => b.y === bubbles[0]?.y).length)
-  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns }[event.key]
-  if (step !== undefined) keyboardIndex = Math.max(0, Math.min(bubbles.length - 1, keyboardIndex + step))
-  if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { prepareSound(); pop(bubbles[keyboardIndex]!, performance.now()); document.querySelector('#announcement')!.textContent = `${popCount}개 터뜨렸어요.` }
-})
-canvas.addEventListener('blur', () => { keyboardVisible = false })
-addEventListener('blur', () => { pointers.clear(); hover = null })
-document.addEventListener('visibilitychange', () => { pointers.clear(); hover = null; lastFrame = performance.now() })
-addEventListener('resize', resize)
-soundButton.addEventListener('click', () => {
-  muted = !muted
-  soundButton.classList.toggle('muted', muted)
-  soundButton.setAttribute('aria-pressed', String(!muted))
-  soundButton.setAttribute('aria-label', muted ? '소리 켜기' : '소리 끄기')
-  soundButton.title = muted ? '소리 켜기' : '소리 끄기'
-  if (!muted) prepareSound()
-})
-document.querySelector('#reset')!.addEventListener('click', () => {
-  const now = performance.now()
-  for (const b of bubbles) { b.poppedAt = now - REINFLATE_MS * .2; b.delay = random(0, 300) }
-  drops = []; labels = []; pointers.clear(); popCount = 0; countElement.textContent = '000'
-  document.querySelector('#announcement')!.textContent = '모든 뽁뽁이가 다시 부풀어 올라요.'
 })
 
-function heart(c: CanvasRenderingContext2D, size: number) {
-  c.beginPath(); c.moveTo(0, size * .75)
-  c.bezierCurveTo(-size * 1.8, -size * .4, -size * .5, -size * 1.5, 0, -size * .5)
-  c.bezierCurveTo(size * .5, -size * 1.5, size * 1.8, -size * .4, 0, size * .75); c.fill()
+function animate(now: number) {
+  const dt = clamp((now - lastFrame) / 1000, 0, .05); lastFrame = now
+  if (now >= returnAt) center()
+  if (now >= lockUntil) target = { ...pendingTarget }
+  const headRate = 1 - Math.exp(-dt * (reducedMotion.matches ? 22 : 7.5))
+  const eyeRate = 1 - Math.exp(-dt * 16)
+  gaze.x += (target.x - gaze.x) * headRate; gaze.y += (target.y - gaze.y) * headRate
+  pupils.x += (target.x - pupils.x) * eyeRate; pupils.y += (target.y - pupils.y) * eyeRate
+  const winkProgress = (now - winkAt) / WINK_DURATION
+  const winkActive = winkProgress >= 0 && winkProgress < 1
+  if (!winkActive && now >= nextBlink) { blinkAt = now; nextBlink = now + 4000 + Math.random() * 3000 }
+  const blink = eyelid(now, blinkAt, 190, .26)
+  const winkOpen = eyelid(now, winkAt, WINK_DURATION, .55)
+  leftOpen = winkActive && winkSide === 0 ? winkOpen : blink
+  rightOpen = winkActive && winkSide === 1 ? winkOpen : blink
+  // Small layered translations read as a rounded face turning inside the orb.
+  head.setAttribute('transform', `translate(${gaze.x * 9} ${gaze.y * 6}) rotate(${gaze.x * 2.4} 300 330)`)
+  features.setAttribute('transform', `translate(${gaze.x * 16} ${gaze.y * 11})`)
+  const smile = winkActive ? Math.sin(clamp(winkProgress * 1.6, 0, 1) * Math.PI) : 0
+  muzzle.setAttribute('transform', `translate(${gaze.x * 3} ${gaze.y * 2 - smile * 2})`)
+  for (let i = 0; i < eyes.length; i++) {
+    const eye = eyes[i]!, open = i === 0 ? leftOpen : rightOpen
+    eye.eye.setAttribute('transform', `scale(1 ${open})`)
+    eye.eye.setAttribute('opacity', open < .08 ? '0' : '1')
+    eye.closed.setAttribute('opacity', String(clamp((.25 - open) / .17, 0, 1)))
+    // Counter-rotate the gaze offset to match each tilted eye's local axes.
+    const angle = (i === 0 ? -10 : 10) * Math.PI / 180
+    const px = pupils.x * 15, py = pupils.y * 25
+    eye.pupil.setAttribute('transform', `translate(${px * Math.cos(angle) - py * Math.sin(angle)} ${px * Math.sin(angle) + py * Math.cos(angle)})`)
+  }
+  orb.style.setProperty('--look-x', String(gaze.x))
+  orb.style.setProperty('--look-y', String(gaze.y))
+  if (!winkActive && orb.classList.contains('is-winking')) {
+    orb.classList.remove('is-winking'); mood.textContent = '조금 느려도, 널 보고 있어.'
+  }
+  requestAnimationFrame(animate)
 }
-function draw(now: number) {
-  const dt = Math.min(.035, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now
-  ctx.clearRect(0, 0, width, height)
-  for (const b of bubbles) {
-    const fill = inflation(b, now)
-    const hovered = hover && Math.hypot(hover.x - b.x, hover.y - b.y) < b.radius
-    const breathe = reducedMotion.matches ? 0 : Math.sin(now * .0015 + b.phase) * .013
-    // The deflated skin stays in place as a little red puddle.
-    ellipse(ctx, b.x, b.y + b.radius * .38, b.radius * .93, b.radius * .48, '#29050c')
-    ellipse(ctx, b.x, b.y + b.radius * .36, b.radius * .73, b.radius * .32, '#4d0917')
-    if (fill > .01) {
-      const size = b.radius * 2.6667 * (fill * .85 + .15) * (1 + (hovered && fill > .96 ? .065 : breathe))
-      const scaleY = .28 + fill * .72
-      const y = b.y + b.radius * .4 * (1 - fill)
-      ctx.globalAlpha = .3 + fill * .7
-      ctx.drawImage(sprites[b.face]!, b.x - size / 2, y - size * scaleY / 2, size, size * scaleY)
-      ctx.globalAlpha = 1
-    } else {
-      ctx.strokeStyle = '#ad1a37'; ctx.lineWidth = 1.5
-      ctx.beginPath(); ctx.moveTo(b.x - 7, b.y + b.radius * .36 - 3); ctx.lineTo(b.x - 3, b.y + b.radius * .36 + 1); ctx.lineTo(b.x + 1, b.y + b.radius * .36 - 3); ctx.stroke()
-    }
-    const elapsed = now - b.poppedAt
-    if (elapsed < 320 && !reducedMotion.matches) {
-      ctx.globalAlpha = (1 - elapsed / 320) * .7; ctx.strokeStyle = '#ff4661'; ctx.lineWidth = 1.5
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.radius * (.8 + elapsed / 200), 0, TAU); ctx.stroke(); ctx.globalAlpha = 1
-    }
-  }
-  drops = drops.filter(d => now - d.born < d.duration)
-  for (const d of drops) {
-    const life = (now - d.born) / d.duration
-    d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 310 * dt; d.vx *= Math.exp(-2 * dt)
-    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rotation + life * 2)
-    ctx.globalAlpha = Math.min(1, (1 - life) * 2.4); ctx.fillStyle = d.color
-    if (d.heart) heart(ctx, d.radius * (1 - life * .5))
-    else { ctx.beginPath(); ctx.ellipse(0, 0, d.radius * (1 - life * .6), d.radius * (1.2 - life * .6), 0, 0, TAU); ctx.fill() }
-    ctx.restore()
-  }
-  labels = labels.filter(l => now - l.born < 650)
-  for (const label of labels) {
-    const progress = (now - label.born) / 650
-    ctx.save(); ctx.translate(label.x, label.y - progress * (reducedMotion.matches ? 8 : 34)); ctx.rotate(label.rotation)
-    ctx.globalAlpha = Math.min(1, (1 - progress) * 2.6); ctx.fillStyle = '#ffc2c9'
-    ctx.font = '800 18px "Apple SD Gothic Neo", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(label.text, 0, 0); ctx.restore()
-  }
-  if (keyboardVisible && document.activeElement === canvas) {
-    const b = bubbles[keyboardIndex]!
-    ctx.strokeStyle = '#ffc2c9'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(b.x, b.y, b.radius + 7, 0, TAU); ctx.stroke(); ctx.setLineDash([])
-  }
-  requestAnimationFrame(draw)
-}
-resize(); requestAnimationFrame(draw)
-Object.defineProperty(window, '__bubblePop', { get: () => ({ pops: popCount, bubbles: bubbles.length, ready: bubbles.filter(b => inflation(b, performance.now()) >= .96).length, activePointers: pointers.size, particles: drops.length, muted, soundPlays: [...soundPlays], audioState: audio?.state ?? 'uninitialized' }) })
+requestAnimationFrame(animate)
+Object.defineProperty(window, '__slowbro', { get: () => ({ target: { ...target }, gaze: { ...gaze }, pupils: { ...pupils }, leftOpen, rightOpen, winkCount, winkSide, touching, locked: performance.now() < lockUntil }) })
