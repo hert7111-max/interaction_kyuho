@@ -3,81 +3,119 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { createContext, runInContext } from 'node:vm'
 
-// Execute the actual input handlers with a virtual clock and minimal DOM/canvas.
-const listeners = new Map()
-const drawing = new Proxy({}, { get: (_, name) => name === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}, set: () => true })
-const surface = { width: 0, height: 0, getContext: () => drawing, setPointerCapture() {}, addEventListener: (name, fn) => listeners.set(name, fn) }
-const generic = { innerHTML: '', textContent: '', hidden: false, querySelector() { return generic }, addEventListener() {}, setAttribute() {} }
-let time = 0
-const sandbox = { document: { querySelector: selector => selector === '#cats' ? surface : generic, createElement: () => ({ ...surface }), addEventListener() {}, fullscreenEnabled: false }, innerWidth: 1280, innerHeight: 800, devicePixelRatio: 2, performance: { now: () => time }, matchMedia: () => ({ matches: false }), addEventListener() {}, requestAnimationFrame() {}, Math }
+// Run the real handlers and audio synthesis against a virtual clock.
+const listeners = new Map(), controls = new Map(), windows = new Map()
+const drawing = new Proxy({}, { get: (_, key) => key === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}, set: () => true })
+const canvas = { getContext: () => drawing, setPointerCapture() {}, addEventListener: (key, fn) => listeners.set(key, fn) }
+const generic = { innerHTML: '', textContent: '', addEventListener() {} }
+const button = id => ({ ...generic, classList: { toggle() {} }, setAttribute() {}, addEventListener: (name, fn) => controls.set(`${id}:${name}`, fn) })
+const sound = button('sound'), reset = button('reset')
+let time = 0, bufferStarts = 0
+const buffers = [], sources = []
+class AudioContext {
+  sampleRate = 22050
+  state = 'suspended'
+  destination = {}
+  resume() { this.state = 'running'; return Promise.resolve() }
+  createDynamicsCompressor() { return { threshold: {}, ratio: {}, connect() {} } }
+  createGain() { return { gain: {}, connect() {} } }
+  createBuffer(_, length) { const data = new Float32Array(length); buffers.push(data); return { getChannelData: () => data } }
+  createBufferSource() { const source = { connect() {}, disconnect() {}, start() { bufferStarts++ }, onended() {} }; sources.push(source); return source }
+}
+const sandbox = {
+  document: { activeElement: canvas, querySelector: id => ({ '#bubbles': canvas, '#sound': sound, '#reset': reset }[id] ?? generic), createElement: () => ({ getContext: () => drawing }), addEventListener() {} },
+  innerWidth: 1280, innerHeight: 800, devicePixelRatio: 2,
+  performance: { now: () => time }, matchMedia: () => ({ matches: false }),
+  addEventListener: (key, fn) => windows.set(key, fn), requestAnimationFrame() {}, AudioContext, Math,
+}
 sandbox.window = sandbox
 const context = createContext(sandbox)
 const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8').replace("import './style.css'", '')
 runInContext(stripTypeScriptTypes(source, { mode: 'strip' }), context)
 const inspect = expression => runInContext(expression, context)
-const reset = () => inspect('particles = []; queue = []; gestures.clear(); flashes = []; burstCount = 0')
-const pointer = (name, x, y, id = 1, extra = {}) => listeners.get(name)({ clientX: x, clientY: y, pointerId: id, pointerType: 'mouse', button: 0, preventDefault() {}, ...extra })
+const ready = () => inspect('bubbles.forEach(b => b.poppedAt = -Infinity); drops = []; labels = []; popCount = 0; pointers.clear()')
+const point = i => inspect(`({x: bubbles[${i}].x, y: bubbles[${i}].y})`)
+const pointer = (name, p, id = 1, extra = {}) => listeners.get(name)({ clientX: p.x, clientY: p.y, pointerId: id, pointerType: 'mouse', button: 0, preventDefault() {}, ...extra })
+const endSounds = () => { sources.splice(0).forEach(s => s.onended()) }
 
-reset()
-pointer('pointerdown', 320, 240)
-assert.equal(sandbox.__catCanvas.activePointers, 1)
-time = 50
-pointer('pointerup', 320, 240)
-assert.equal(sandbox.__catCanvas.bursts, 1)
-assert.equal(sandbox.__catCanvas.activePointers, 0)
-assert.equal(inspect('particles.every(p => p.x === 320 && p.y === 240)'), true)
-const smallCount = sandbox.__catCanvas.particles
-const smallSize = inspect('Math.max(...particles.map(p => p.size))')
-assert.equal(inspect('particles.every(p => p.sprite >= 0 && p.sprite < cats.length)'), true)
-const smallSpeed = inspect('Math.max(...particles.map(p => Math.hypot(p.vx, p.vy)))')
-reset()
-time = 100
-pointer('pointerdown', 700, 350)
+const first = point(0)
+pointer('pointerdown', first)
+assert.equal(sandbox.__bubblePop.pops, 1, 'Click pops immediately')
+assert.equal(sandbox.__bubblePop.activePointers, 1)
+pointer('pointerup', first)
+assert.equal(sandbox.__bubblePop.pops, 1, 'Release does not duplicate a pop')
+pointer('pointerdown', first); pointer('pointerup', first)
+assert.equal(sandbox.__bubblePop.pops, 1, 'Deflated bubble cannot pop twice')
+assert.equal(inspect('inflation(bubbles[0], 0)'), 0)
 time = 2400
-pointer('pointerup', 700, 350)
-assert.ok(sandbox.__catCanvas.particles > smallCount * 1.6, 'Long hold creates a larger burst')
-assert.ok(inspect('Math.max(...particles.map(p => Math.hypot(p.vx, p.vy)))') > smallSpeed * 1.3, 'Long hold expands farther')
-assert.ok(inspect('Math.max(...particles.map(p => p.size))') > smallSize * 1.5, 'Long hold makes the cats visibly larger')
-console.log('✓ Click bursts at the selected location; long hold increases particle count and expansion')
+assert.ok(inspect('inflation(bubbles[0], performance.now())') > 0)
+assert.ok(inspect('inflation(bubbles[0], performance.now())') < .96)
+time = 6000
+assert.equal(inspect('inflation(bubbles[0], performance.now())'), 1)
+pointer('pointerdown', first); pointer('pointerup', first)
+assert.equal(sandbox.__bubblePop.pops, 2, 'Reinflated bubble can pop again')
+console.log('✓ Click pops once, stays deflated, gradually regrows, then becomes poppable again')
 
-reset()
-time = 3000
-pointer('pointerdown', 100, 200)
-pointer('pointermove', 350, 200)
-pointer('pointermove', 350, 450)
-time = 3800
-pointer('pointerup', 600, 450)
-assert.equal(sandbox.__catCanvas.bursts, 0, 'Drag waits for release and scheduled playback')
-assert.ok(sandbox.__catCanvas.queued > 10)
-assert.equal(inspect('queue[0].x === 100 && queue[0].y === 200 && queue.at(-1).x === 600 && queue.at(-1).y === 450'), true)
-assert.equal(inspect('queue.every(p => (p.y === 200 && p.x <= 350) || (p.x === 350 && p.y >= 200 && p.y <= 450) || (p.y === 450 && p.x >= 350))'), true, 'Bursts follow each leg of the actual route')
-assert.equal(inspect('queue.every((p,i) => i === 0 || p.at > queue[i-1].at)'), true)
-inspect('draw(3801)')
-assert.equal(sandbox.__catCanvas.bursts, 1)
-inspect('draw(7000)')
-assert.equal(sandbox.__catCanvas.queued, 0)
-assert.ok(sandbox.__catCanvas.bursts > 10)
-console.log('✓ Drag preserves corners and endpoints, then fires sequentially along the route')
+ready(); endSounds()
+const cols = inspect('bubbles.filter(b => b.y === bubbles[0].y).length')
+pointer('pointerdown', point(0))
+pointer('pointermove', point(cols - 1))
+assert.equal(sandbox.__bubblePop.pops, cols, 'Fast drag hits every crossed bubble')
+pointer('pointermove', point(cols * 2 - 1))
+assert.equal(sandbox.__bubblePop.pops, cols + 1, 'Drag follows corners')
+pointer('pointerup', point(cols * 2 - 1))
+assert.equal(sandbox.__bubblePop.activePointers, 0)
+console.log('✓ Fast drags pop every bubble along the actual path before release')
 
-reset()
-pointer('pointerdown', 100, 100, 11, { pointerType: 'touch' })
-pointer('pointerdown', 800, 300, 12, { pointerType: 'touch' })
-assert.equal(sandbox.__catCanvas.activePointers, 2)
-pointer('pointerup', 100, 100, 11, { pointerType: 'touch' })
-pointer('pointercancel', 800, 300, 12)
-assert.equal(sandbox.__catCanvas.activePointers, 0)
-assert.equal(sandbox.__catCanvas.bursts, 1)
-console.log('✓ Touch pointers are independent; cancelled gestures do not fire')
-reset()
-const keyboard = (name, key) => listeners.get(name)({ key, repeat: false, preventDefault() {} })
-keyboard('keydown', ' ')
-keyboard('keydown', 'ArrowRight')
-keyboard('keyup', ' ')
-assert.ok(sandbox.__catCanvas.queued >= 2)
-console.log('✓ Keyboard charging and drawing work with Space and arrow keys')
-reset()
-for (let i = 0; i < 100; i++) { pointer('pointerdown', 200, 200); pointer('pointerup', 200, 200) }
-assert.ok(sandbox.__catCanvas.particles <= 480)
-inspect('draw(100000)')
-assert.equal(inspect('particles.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))'), true)
-console.log('✓ Rapid input stays within the particle budget and renders finite positions')
+ready(); endSounds()
+pointer('pointerdown', point(0), 11, { pointerType: 'touch' })
+pointer('pointerdown', point(cols * 2), 12, { pointerType: 'touch' })
+assert.equal(sandbox.__bubblePop.activePointers, 2)
+pointer('pointermove', point(cols * 2 + 2), 12, { pointerType: 'touch' })
+pointer('pointercancel', point(0), 11)
+pointer('lostpointercapture', point(cols * 2 + 2), 12)
+assert.equal(sandbox.__bubblePop.activePointers, 0)
+assert.equal(sandbox.__bubblePop.pops, 4)
+console.log('✓ Multitouch paths stay independent and cancellation clears gestures')
+
+assert.equal(buffers.length, 3)
+assert.ok(new Set(buffers.map(b => b.length)).size === 3)
+for (const data of buffers) {
+  assert.ok(data.some(v => Math.abs(v) > .1), 'Sound contains audible samples')
+  assert.ok(data.every(v => Number.isFinite(v) && Math.abs(v) <= 1), 'Audio stays finite and unclipped')
+  assert.ok(Math.abs(data.at(-1)) < .01, 'Sound fades out')
+}
+ready(); endSounds()
+for (let i = 0; i < 120; i++) { inspect('bubbles[0].poppedAt = -Infinity'); pointer('pointerdown', first); pointer('pointerup', first); endSounds() }
+assert.ok(sandbox.__bubblePop.soundPlays.every(n => n > 0), 'All three variants play')
+const beforeMute = bufferStarts
+controls.get('sound:click')()
+ready(); pointer('pointerdown', first); pointer('pointerup', first)
+assert.equal(bufferStarts, beforeMute)
+assert.equal(sandbox.__bubblePop.pops, 1, 'Mute keeps visual interaction working')
+controls.get('sound:click')()
+console.log('✓ Three distinct sounds play randomly; mute stops audio and preserves interaction')
+
+ready()
+listeners.get('keydown')({ key: 'ArrowRight', preventDefault() {} })
+listeners.get('keydown')({ key: ' ', preventDefault() {}, repeat: false })
+assert.equal(sandbox.__bubblePop.pops, 1)
+assert.equal(inspect('bubbles[1].poppedAt'), time)
+controls.get('reset:click')()
+assert.equal(sandbox.__bubblePop.pops, 0)
+time += 4500
+assert.equal(sandbox.__bubblePop.ready, sandbox.__bubblePop.bubbles)
+console.log('✓ Keyboard navigation and reset work')
+
+for (const [w, h] of [[390, 844], [320, 568], [844, 390], [1920, 1080]]) {
+  sandbox.innerWidth = w; sandbox.innerHeight = h; windows.get('resize')()
+  assert.ok(inspect('bubbles.every(b => b.x-b.radius >= 0 && b.x+b.radius <= width && b.y-b.radius >= 0 && b.y+b.radius <= height)'))
+  inspect('draw(performance.now())')
+}
+ready()
+for (let i = 0; i < 100; i++) inspect('bubbles[0].poppedAt = -Infinity; pop(bubbles[0], performance.now())')
+assert.ok(sandbox.__bubblePop.particles <= 700)
+assert.ok(inspect('voices <= 24'))
+time += 1000; inspect('draw(performance.now())')
+assert.equal(sandbox.__bubblePop.particles, 0)
+console.log('✓ Mobile, landscape, and desktop grids fit; effects and concurrent sounds stay bounded')

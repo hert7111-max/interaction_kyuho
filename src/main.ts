@@ -1,253 +1,283 @@
 import './style.css'
 
+const soundIcon = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="sound-cross" d="m16 9 5 6m0-6-5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<main class="poster" aria-label="고양이 이모티콘 놀이터">
+<main class="playground">
+  <canvas id="bubbles" tabindex="0" role="application" aria-label="빨간 뽁뽁이 놀이터. 클릭, 터치하거나 누른 채 드래그해 터뜨리세요. 키보드는 방향키로 이동하고 스페이스 또는 엔터로 터뜨립니다."></canvas>
   <header class="header">
-    <span class="edition">PLAYGROUND 002</span>
-    <span class="club">THE GOOD IDEAS CLUB</span>
-    <button class="fullscreen" type="button" aria-label="전체 화면으로 보기" title="전체 화면"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>전체 화면</span></button>
-  </header>
-  <div class="poster-content">
-    <p class="eyebrow">A LITTLE CURIOSITY. A LOT OF CATS.</p>
-    <h1 aria-label="VIBE CODING WORKSHOP">
-      <svg class="title-desktop" viewBox="0 0 1000 310" role="presentation" aria-hidden="true"><text x="12" y="143" textLength="976" lengthAdjust="spacingAndGlyphs">VIBE CODING</text><text x="12" y="293" textLength="976" lengthAdjust="spacingAndGlyphs">WORKSHOP</text></svg>
-      <svg class="title-mobile" viewBox="0 0 1000 650" role="presentation" aria-hidden="true"><text x="18" y="202" textLength="964" lengthAdjust="spacingAndGlyphs">VIBE</text><text x="18" y="412" textLength="964" lengthAdjust="spacingAndGlyphs">CODING</text><text x="18" y="622" textLength="964" lengthAdjust="spacingAndGlyphs">WORKSHOP</text></svg>
-    </h1>
-    <p class="tagline">BIG IDEAS. LITTLE PAWS.</p>
-  </div>
-  <canvas id="cats" tabindex="0" role="application" aria-label="고양이 캔버스. 클릭하거나 터치하면 고양이 이모티콘이 터집니다. 오래 누르면 더 커지고, 드래그 후 놓으면 경로를 따라 터집니다. 키보드는 방향키로 위치를 옮기고 스페이스를 누른 뒤 놓으세요."></canvas>
-  <footer class="footer">
-    <p class="invitation">어디든 눌러보세요. 귀여움이 터질 거예요.</p>
-    <div class="guide" aria-label="사용 방법">
-      <div class="gesture"><span class="gesture-number">01</span><div><strong>CLICK</strong><span>톡 누르면 고양이 팡!</span></div></div>
-      <div class="gesture"><span class="gesture-number">02</span><div><strong>HOLD</strong><span>꾹 누르면 더 크게</span></div></div>
-      <div class="gesture"><span class="gesture-number">03</span><div><strong>DRAG & RELEASE</strong><span>선을 따라 냥냥냥</span></div></div>
+    <div class="brand"><h1>뽁<span>.</span></h1><span class="brand-note">LITTLE POP, BIG RELIEF.</span></div>
+    <p class="header-note">아무 생각 없이, 마음껏.</p>
+    <div class="controls">
+      <button id="sound" class="icon-button" type="button" aria-label="소리 끄기" aria-pressed="true" title="소리 끄기">${soundIcon}</button>
+      <button id="reset" class="icon-button" type="button" aria-label="모두 다시 부풀리기" title="모두 다시 부풀리기"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.7 7M4 4v6h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
-    <div class="footnote"><span>LESS SERIOUS. MORE MEOW.</span><span>CLICK ANYWHERE & MAKE IT MEOW ↗</span></div>
+  </header>
+  <footer class="footer">
+    <span class="regrow"><i></i>다시 부푸는 중에도, 잠깐 쉬어가요.</span>
+    <p class="instruction"><span class="mouse-icon">↗</span> 클릭 · 터치 · 드래그 <span class="divider"></span><span class="instruction-light">작은 뽁, 가벼운 마음</span></p>
+    <div class="counter"><span id="count">000</span><span class="count-label">POPS</span></div>
   </footer>
-  <p class="sr-only" id="announcement" role="status" aria-live="polite"></p>
+  <span class="sr-only" id="announcement" role="status" aria-live="polite"></span>
 </main>`
 
-const canvas = document.querySelector<HTMLCanvasElement>('#cats')!
+const canvas = document.querySelector<HTMLCanvasElement>('#bubbles')!
 const ctx = canvas.getContext('2d')!
+const soundButton = document.querySelector<HTMLButtonElement>('#sound')!
+const countElement = document.querySelector('#count')!
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
-const colors = ['#fa3009', '#d62912', '#e15c2b', '#c93624', '#f44e20', '#ab3a20']
-const cats = ['😺', '😸', '😻', '😽', '😼', '🙀', '😹', '🐱']
 type Point = { x: number; y: number }
-type Gesture = { start: number; points: Point[]; current: Point; hue: number; distance: number }
-type Particle = Point & { vx: number; vy: number; life: number; maxLife: number; color: number; size: number; angle: number; spin: number; sprite: number }
-type Burst = Point & { at: number; power: number; hue: number }
-type Flash = Point & { life: number; radius: number; color: number }
+type Bubble = Point & { radius: number; poppedAt: number; delay: number; face: number; phase: number }
+type Drop = Point & { vx: number; vy: number; radius: number; born: number; duration: number; heart: boolean; color: string; rotation: number }
+type PopLabel = Point & { born: number; text: string; rotation: number }
 let width = innerWidth, height = innerHeight
-const gestures = new Map<number, Gesture>()
-let particles: Particle[] = []
-let queue: Burst[] = []
-let flashes: Flash[] = []
-let lastFrame = performance.now()
-let keyboardPoint = { x: width / 2, y: height * .56 }
+let bubbles: Bubble[] = []
+let drops: Drop[] = []
+let labels: PopLabel[] = []
+let popCount = 0
+let muted = false
+let hover: Point | null = null
+let keyboardIndex = 0
 let keyboardVisible = false
-let burstCount = 0
-const random = (min: number, max: number) => min + Math.random() * (max - min)
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
-const powerFor = (duration: number) => .62 + Math.min(duration / 2200, 1) * 1.65
-const sprites = cats.map(emoji => {
-  const sprite = document.createElement('canvas')
-  sprite.width = sprite.height = 128
-  const context = sprite.getContext('2d')!
-  context.font = '88px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
-  context.textAlign = 'center'; context.textBaseline = 'middle'
-  context.fillText(emoji, 64, 68)
+let lastFrame = performance.now()
+const pointers = new Map<number, Point>()
+const random = (a: number, b: number) => a + Math.random() * (b - a)
+const TAU = Math.PI * 2
+const REINFLATE_MS = 3400
+let audio: AudioContext | null = null
+let output: DynamicsCompressorNode | null = null
+let sounds: AudioBuffer[] = []
+let voices = 0
+const soundPlays = [0, 0, 0]
+
+// Three original pop sounds, generated locally: crisp, squishy, and bubbly.
+function prepareSound() {
+  if (muted) return
+  try {
+    if (!audio) {
+      audio = new AudioContext()
+      output = audio.createDynamicsCompressor()
+      output.threshold.value = -16; output.ratio.value = 8
+      const volume = audio.createGain(); volume.gain.value = .48
+      output.connect(volume); volume.connect(audio.destination)
+      sounds = [0, 1, 2].map(kind => {
+        const duration = [.16, .23, .3][kind]!
+        const buffer = audio!.createBuffer(1, Math.ceil(audio!.sampleRate * duration), audio!.sampleRate)
+        const data = buffer.getChannelData(0)
+        let phase = 0, filtered = 0
+        for (let i = 0; i < data.length; i++) {
+          const t = i / audio!.sampleRate
+          const noise = Math.random() * 2 - 1
+          filtered = filtered * .67 + noise * .33
+          const frequency = kind === 0 ? 75 + 700 * Math.exp(-t * 60) : kind === 1 ? 55 + 420 * Math.exp(-t * 27) : 100 + 930 * Math.exp(-t * 22)
+          phase += TAU * frequency / audio!.sampleRate
+          const attack = Math.min(1, t / .002)
+          const envelope = Math.exp(-t * [36, 23, 20][kind]!) * attack
+          const body = Math.sin(phase) * (kind === 1 ? .84 : .68)
+          const snap = (kind === 0 ? noise : filtered) * Math.exp(-t * 95) * .45
+          const bubble = kind === 2 ? Math.sin(phase * 1.52) * .18 * Math.exp(-t * 24) : 0
+          data[i] = Math.tanh((body + snap + bubble) * 1.35) * envelope * .8
+        }
+        return buffer
+      })
+    }
+    if (audio.state === 'suspended') void audio.resume().catch(() => {})
+  } catch { /* Visual interaction remains available without audio support. */ }
+}
+function playPop() {
+  if (muted || !audio || !output || !sounds.length || voices >= 24) return
+  const kind = Math.floor(Math.random() * 3)
+  const voice = audio.createBufferSource()
+  voice.buffer = sounds[kind]!
+  voice.connect(output)
+  voices++; soundPlays[kind]++
+  voice.onended = () => { voices--; voice.disconnect() }
+  voice.start()
+}
+
+function ellipse(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, fill: string) {
+  c.fillStyle = fill; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fill()
+}
+// Pre-render the glossy surface so even a screen full of bubbles stays light.
+const sprites = Array.from({ length: 4 }, (_, face) => {
+  const sprite = document.createElement('canvas'); sprite.width = sprite.height = 240
+  const c = sprite.getContext('2d')!
+  c.translate(120, 120)
+  ellipse(c, 0, 9, 92, 88, '#35050b')
+  const edge = c.createRadialGradient(-20, -33, 5, 0, 0, 94)
+  edge.addColorStop(0, '#ff7277'); edge.addColorStop(.35, '#ff3447'); edge.addColorStop(.72, '#e61632'); edge.addColorStop(.94, '#990d25'); edge.addColorStop(1, '#ff4255')
+  c.fillStyle = edge; c.beginPath(); c.arc(0, 0, 90, 0, TAU); c.fill()
+  const shine = c.createRadialGradient(-27, -40, 0, -20, -27, 60)
+  shine.addColorStop(0, '#ffc1bc8c'); shine.addColorStop(.6, '#ffafaa18'); shine.addColorStop(1, '#ff9c9c00')
+  c.fillStyle = shine; c.beginPath(); c.arc(0, 0, 88, 0, TAU); c.fill()
+  c.save(); c.translate(-30, -47); c.rotate(-.5)
+  ellipse(c, 0, 0, 23, 10, '#ffe9dfb8'); ellipse(c, 33, -1, 5, 4, '#ffe9df80'); c.restore()
+  c.strokeStyle = '#ff6c7777'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 82, .2, 1.4); c.stroke()
+  // Tiny cocoa eyes, rosy cheeks, and four contented expressions.
+  ellipse(c, -31, 22, 10, 5.5, '#ff92916b'); ellipse(c, 31, 22, 10, 5.5, '#ff92916b')
+  c.strokeStyle = '#550b1d'; c.fillStyle = '#550b1d'; c.lineWidth = 4.4; c.lineCap = 'round'
+  for (const x of [-20, 20]) {
+    if (face === 1 || (face === 3 && x > 0)) { c.beginPath(); c.moveTo(x - 5, 13); c.quadraticCurveTo(x, 6, x + 5, 13); c.stroke() }
+    else ellipse(c, x, 12, 3.8, 5.7, '#550b1d')
+  }
+  if (face === 2) ellipse(c, 0, 27, 4.2, 5.5, '#550b1d')
+  else { c.beginPath(); c.moveTo(-7, 26); c.quadraticCurveTo(0, 35, 7, 26); c.stroke() }
   return sprite
 })
 
 function resize() {
   width = innerWidth; height = innerHeight
-  const ratio = Math.min(devicePixelRatio || 1, 2)
-  for (const surface of [canvas]) {
-    surface.width = Math.round(width * ratio); surface.height = Math.round(height * ratio)
-    surface.getContext('2d')!.setTransform(ratio, 0, 0, ratio, 0, 0)
-  }
-  keyboardPoint = { x: width / 2, y: height * .56 }
-  gestures.clear()
+  const dpr = Math.min(devicePixelRatio || 1, 2)
+  canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  const columns = Math.max(3, Math.round(width / (width < 600 ? 83 : 112)))
+  const gapX = width / columns
+  const top = width < 600 ? 100 : 124
+  const bottom = width < 600 ? 100 : 102
+  const available = Math.max(60, height - top - bottom)
+  const rows = Math.max(1, Math.round(available / gapX))
+  const gapY = available / rows
+  const radius = Math.min(gapX, gapY) * .355
+  const previous = bubbles
+  bubbles = Array.from({ length: columns * rows }, (_, i) => ({ x: gapX * (i % columns + .5), y: top + gapY * (Math.floor(i / columns) + .5), radius, poppedAt: previous[i]?.poppedAt ?? -Infinity, delay: previous[i]?.delay ?? 1400, face: previous[i]?.face ?? Math.floor(random(0, 4)), phase: i * 1.76 }))
+  keyboardIndex = Math.min(keyboardIndex, bubbles.length - 1)
+  pointers.clear(); hover = null
 }
-
-function burst(x: number, y: number, power: number, hue: number) {
-  const shape = Math.floor(random(0, 6))
-  const amount = Math.round((reducedMotion.matches ? 9 : 24) * Math.sqrt(power))
-  const scale = Math.min(width, height) / 780
-  const speed = (1.2 + power * 1.4) * Math.max(.65, Math.min(scale, 1.25))
-  const rotation = random(0, Math.PI * 2)
+function inflation(bubble: Bubble, now: number) {
+  const progress = Math.max(0, Math.min(1, (now - bubble.poppedAt - bubble.delay) / REINFLATE_MS))
+  return progress * progress * (3 - 2 * progress)
+}
+function pop(bubble: Bubble, now: number) {
+  if (inflation(bubble, now) < .96) return
+  bubble.poppedAt = now; bubble.delay = random(1100, 1700)
+  popCount++; countElement.textContent = String(popCount).padStart(3, '0')
+  playPop()
+  const amount = reducedMotion.matches ? 5 : 17
   for (let i = 0; i < amount; i++) {
-    const t = (i / amount) * Math.PI * 2
-    let vx: number, vy: number
-    const angle = t + rotation
-    if (shape === 1) {
-      // A heart traced with sparks.
-      vx = 16 * Math.sin(t) ** 3 / 5.2
-      vy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 5.2
-    } else if (shape === 2) {
-      // Interpolate the outline of a five-point star.
-      const sector = (i / amount * 10) % 1
-      const a = Math.floor(i / amount * 10) * Math.PI / 5 - Math.PI / 2 + rotation
-      const r1 = Math.floor(i / amount * 10) % 2 === 0 ? 3.6 : 1.55
-      const r2 = r1 === 3.6 ? 1.55 : 3.6
-      vx = Math.cos(a) * r1 * (1 - sector) + Math.cos(a + Math.PI / 5) * r2 * sector
-      vy = Math.sin(a) * r1 * (1 - sector) + Math.sin(a + Math.PI / 5) * r2 * sector
-    } else {
-      const radius = shape === 3 ? 3.4 : shape === 4 ? (i % 2 ? 3.7 : 1.8) : random(.6, 3.8)
-      vx = Math.cos(angle) * radius
-      vy = Math.sin(angle) * radius * (shape === 5 ? .58 : 1)
-    }
-    const life = random(74, 110) * (reducedMotion.matches ? .6 : 1)
-    particles.push({ x, y, vx: vx * speed, vy: vy * speed, life, maxLife: life, color: hue, size: random(26, 40) * Math.sqrt(power) * Math.max(.75, Math.min(scale, 1)), angle: random(-.4, .4), spin: random(-.035, .035), sprite: Math.floor(random(0, cats.length)) })
+    const angle = TAU * i / amount + random(-.18, .18)
+    const speed = random(70, 230) * bubble.radius / 36
+    drops.push({ x: bubble.x, y: bubble.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 28, radius: random(2.8, 7), born: now, duration: random(400, 780), heart: i % 7 === 0, color: ['#ff2847', '#ff4a61', '#bb1031', '#ff7b8e'][i % 4]!, rotation: random(-.8, .8) })
   }
-  if (particles.length > 480) particles.splice(0, particles.length - 480)
-  flashes.push({ x, y, life: 1, radius: 52 * power, color: hue })
-  burstCount++
+  if (drops.length > 700) drops.splice(0, drops.length - 700)
+  labels.push({ x: bubble.x, y: bubble.y - bubble.radius * .3, born: now, text: ['뽁!', '팡!', '뽀독!'][Math.floor(random(0, 3))]!, rotation: random(-.2, .2) })
+  if (labels.length > 32) labels.shift()
 }
-
-function start(id: number, point: Point) {
-  gestures.set(id, { start: performance.now(), points: [point], current: point, hue: Math.floor(random(0, colors.length)), distance: 0 })
-}
-function move(id: number, point: Point) {
-  const gesture = gestures.get(id)
-  if (!gesture) return
-  gesture.current = point
-  const previous = gesture.points[gesture.points.length - 1]!
-  if (distance(point, previous) >= 3) {
-    gesture.distance += distance(point, previous)
-    gesture.points.push(point)
-    if (gesture.points.length > 3000) gesture.points = gesture.points.filter((_, i) => i % 2 === 0 || i === gesture.points.length - 1)
-  }
-}
-function release(id: number) {
-  const gesture = gestures.get(id)
-  if (!gesture) return
-  gestures.delete(id)
+function popPath(from: Point, to: Point) {
+  const dx = to.x - from.x, dy = to.y - from.y
+  const lengthSquared = dx * dx + dy * dy
   const now = performance.now()
-  const power = powerFor(now - gesture.start)
-  if (gesture.distance < 16) {
-    burst(gesture.current.x, gesture.current.y, power, gesture.hue)
-  } else {
-    const points = [...gesture.points]
-    if (distance(points[points.length - 1]!, gesture.current) > .1) points.push(gesture.current)
-    let total = 0
-    const lengths = points.map((point, i) => { if (i) total += distance(points[i - 1]!, point); return total })
-    const count = Math.min(44, Math.max(2, Math.ceil(total / 48) + 1))
-    let segment = 1
-    for (let i = 0; i < count; i++) {
-      const target = total * i / (count - 1)
-      while (segment < points.length - 1 && lengths[segment]! < target) segment++
-      const a = points[segment - 1]!, b = points[segment]!
-      const fraction = (target - lengths[segment - 1]!) / Math.max(.01, lengths[segment]! - lengths[segment - 1]!)
-      queue.push({ x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction, power: power * .78, at: now + i * 68, hue: (gesture.hue + Math.floor(i / 3)) % colors.length })
-    }
-    if (queue.length > 180) queue.splice(0, queue.length - 180)
+  for (const bubble of bubbles) {
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((bubble.x - from.x) * dx + (bubble.y - from.y) * dy) / lengthSquared)) : 0
+    const distance = Math.hypot(bubble.x - from.x - t * dx, bubble.y - from.y - t * dy)
+    if (distance <= bubble.radius * 1.08) pop(bubble, now)
   }
-  document.querySelector('#announcement')!.textContent = '귀여운 고양이들이 튀어나옵니다.'
 }
-
 canvas.addEventListener('pointerdown', event => {
   if (event.pointerType === 'mouse' && event.button !== 0) return
-  event.preventDefault(); keyboardVisible = false
+  event.preventDefault(); prepareSound(); keyboardVisible = false
   canvas.setPointerCapture(event.pointerId)
-  start(event.pointerId, { x: event.clientX, y: event.clientY })
+  const point = { x: event.clientX, y: event.clientY }
+  pointers.set(event.pointerId, point); popPath(point, point)
 })
 canvas.addEventListener('pointermove', event => {
-  for (const sample of event.getCoalescedEvents?.() ?? [event]) move(event.pointerId, { x: sample.clientX, y: sample.clientY })
-  move(event.pointerId, { x: event.clientX, y: event.clientY })
+  hover = event.pointerType === 'mouse' ? { x: event.clientX, y: event.clientY } : null
+  const previous = pointers.get(event.pointerId)
+  if (!previous) return
+  const samples = event.getCoalescedEvents?.() ?? []
+  let from = previous
+  for (const sample of [...samples, event]) {
+    const to = { x: sample.clientX, y: sample.clientY }; popPath(from, to); from = to
+  }
+  pointers.set(event.pointerId, from)
 })
-canvas.addEventListener('pointerup', event => { move(event.pointerId, { x: event.clientX, y: event.clientY }); release(event.pointerId) })
-canvas.addEventListener('pointercancel', event => gestures.delete(event.pointerId))
-canvas.addEventListener('lostpointercapture', event => gestures.delete(event.pointerId))
+canvas.addEventListener('pointerup', event => {
+  const previous = pointers.get(event.pointerId)
+  if (previous) popPath(previous, { x: event.clientX, y: event.clientY })
+  pointers.delete(event.pointerId)
+})
+for (const name of ['pointercancel', 'lostpointercapture'] as const) canvas.addEventListener(name, event => pointers.delete(event.pointerId))
+canvas.addEventListener('pointerleave', () => { hover = null })
 canvas.addEventListener('contextmenu', event => event.preventDefault())
 canvas.addEventListener('keydown', event => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) event.preventDefault()
-  keyboardVisible = true
-  if (event.key === ' ' && !event.repeat) start(-1, { ...keyboardPoint })
-  if (event.key === 'ArrowLeft') keyboardPoint.x = Math.max(20, keyboardPoint.x - 20)
-  if (event.key === 'ArrowRight') keyboardPoint.x = Math.min(width - 20, keyboardPoint.x + 20)
-  if (event.key === 'ArrowUp') keyboardPoint.y = Math.max(20, keyboardPoint.y - 20)
-  if (event.key === 'ArrowDown') keyboardPoint.y = Math.min(height - 20, keyboardPoint.y + 20)
-  move(-1, { ...keyboardPoint })
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter'].includes(event.key)) return
+  event.preventDefault(); keyboardVisible = true
+  const columns = Math.max(1, bubbles.filter(b => b.y === bubbles[0]?.y).length)
+  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns }[event.key]
+  if (step !== undefined) keyboardIndex = Math.max(0, Math.min(bubbles.length - 1, keyboardIndex + step))
+  if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { prepareSound(); pop(bubbles[keyboardIndex]!, performance.now()); document.querySelector('#announcement')!.textContent = `${popCount}개 터뜨렸어요.` }
 })
-canvas.addEventListener('keyup', event => { if (event.key === ' ') { event.preventDefault(); release(-1) } })
-canvas.addEventListener('blur', () => { gestures.delete(-1); keyboardVisible = false })
-addEventListener('blur', () => gestures.clear())
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { gestures.clear(); queue = []; particles = []; flashes = [] }
-  lastFrame = performance.now()
-})
+canvas.addEventListener('blur', () => { keyboardVisible = false })
+addEventListener('blur', () => { pointers.clear(); hover = null })
+document.addEventListener('visibilitychange', () => { pointers.clear(); hover = null; lastFrame = performance.now() })
 addEventListener('resize', resize)
-const fullscreenButton = document.querySelector<HTMLButtonElement>('.fullscreen')!
-if (!document.fullscreenEnabled) fullscreenButton.hidden = true
-fullscreenButton.addEventListener('click', async () => {
-  try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen() } catch { /* Embedded previews can restrict fullscreen. */ }
+soundButton.addEventListener('click', () => {
+  muted = !muted
+  soundButton.classList.toggle('muted', muted)
+  soundButton.setAttribute('aria-pressed', String(!muted))
+  soundButton.setAttribute('aria-label', muted ? '소리 켜기' : '소리 끄기')
+  soundButton.title = muted ? '소리 켜기' : '소리 끄기'
+  if (!muted) prepareSound()
 })
-document.addEventListener('fullscreenchange', () => {
-  const label = document.fullscreenElement ? '전체 화면 나가기' : '전체 화면'
-  fullscreenButton.querySelector('span')!.textContent = label
-  fullscreenButton.setAttribute('aria-label', label)
+document.querySelector('#reset')!.addEventListener('click', () => {
+  const now = performance.now()
+  for (const b of bubbles) { b.poppedAt = now - REINFLATE_MS * .2; b.delay = random(0, 300) }
+  drops = []; labels = []; pointers.clear(); popCount = 0; countElement.textContent = '000'
+  document.querySelector('#announcement')!.textContent = '모든 뽁뽁이가 다시 부풀어 올라요.'
 })
 
-function draw(time: number) {
-  const dt = Math.min(2.2, (time - lastFrame) / 16.667)
-  lastFrame = time
+function heart(c: CanvasRenderingContext2D, size: number) {
+  c.beginPath(); c.moveTo(0, size * .75)
+  c.bezierCurveTo(-size * 1.8, -size * .4, -size * .5, -size * 1.5, 0, -size * .5)
+  c.bezierCurveTo(size * .5, -size * 1.5, size * 1.8, -size * .4, 0, size * .75); c.fill()
+}
+function draw(now: number) {
+  const dt = Math.min(.035, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now
   ctx.clearRect(0, 0, width, height)
-  for (const item of queue) if (item.at <= time) burst(item.x, item.y, item.power, item.hue)
-  queue = queue.filter(item => item.at > time)
-  for (const flash of flashes) {
-    flash.life -= .065 * dt
-    if (flash.life <= 0) continue
-    ctx.globalAlpha = flash.life * .32
-    ctx.strokeStyle = colors[flash.color]!
-    ctx.lineWidth = 1.4
-    ctx.beginPath(); ctx.arc(flash.x, flash.y, flash.radius * (1.1 - flash.life), 0, Math.PI * 2); ctx.stroke()
+  for (const b of bubbles) {
+    const fill = inflation(b, now)
+    const hovered = hover && Math.hypot(hover.x - b.x, hover.y - b.y) < b.radius
+    const breathe = reducedMotion.matches ? 0 : Math.sin(now * .0015 + b.phase) * .013
+    // The deflated skin stays in place as a little red puddle.
+    ellipse(ctx, b.x, b.y + b.radius * .38, b.radius * .93, b.radius * .48, '#29050c')
+    ellipse(ctx, b.x, b.y + b.radius * .36, b.radius * .73, b.radius * .32, '#4d0917')
+    if (fill > .01) {
+      const size = b.radius * 2.6667 * (fill * .85 + .15) * (1 + (hovered && fill > .96 ? .065 : breathe))
+      const scaleY = .28 + fill * .72
+      const y = b.y + b.radius * .4 * (1 - fill)
+      ctx.globalAlpha = .3 + fill * .7
+      ctx.drawImage(sprites[b.face]!, b.x - size / 2, y - size * scaleY / 2, size, size * scaleY)
+      ctx.globalAlpha = 1
+    } else {
+      ctx.strokeStyle = '#ad1a37'; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.moveTo(b.x - 7, b.y + b.radius * .36 - 3); ctx.lineTo(b.x - 3, b.y + b.radius * .36 + 1); ctx.lineTo(b.x + 1, b.y + b.radius * .36 - 3); ctx.stroke()
+    }
+    const elapsed = now - b.poppedAt
+    if (elapsed < 320 && !reducedMotion.matches) {
+      ctx.globalAlpha = (1 - elapsed / 320) * .7; ctx.strokeStyle = '#ff4661'; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.radius * (.8 + elapsed / 200), 0, TAU); ctx.stroke(); ctx.globalAlpha = 1
+    }
   }
-  flashes = flashes.filter(flash => flash.life > 0)
-  for (const particle of particles) {
-    particle.x += particle.vx * dt; particle.y += particle.vy * dt
-    particle.vx *= Math.pow(.987, dt)
-    particle.vy = particle.vy * Math.pow(.987, dt) + .055 * dt
-    particle.angle += particle.spin * dt
-    particle.life -= dt
-    const alpha = Math.max(0, Math.min(1, particle.life / 26))
-    const appear = Math.min(1, (particle.maxLife - particle.life) / 5)
-    const size = particle.size * (.45 + .55 * appear)
-    ctx.save(); ctx.globalAlpha = alpha
-    ctx.translate(particle.x, particle.y); ctx.rotate(particle.angle)
-    ctx.drawImage(sprites[particle.sprite]!, -size / 2, -size / 2, size, size)
+  drops = drops.filter(d => now - d.born < d.duration)
+  for (const d of drops) {
+    const life = (now - d.born) / d.duration
+    d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 310 * dt; d.vx *= Math.exp(-2 * dt)
+    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rotation + life * 2)
+    ctx.globalAlpha = Math.min(1, (1 - life) * 2.4); ctx.fillStyle = d.color
+    if (d.heart) heart(ctx, d.radius * (1 - life * .5))
+    else { ctx.beginPath(); ctx.ellipse(0, 0, d.radius * (1 - life * .6), d.radius * (1.2 - life * .6), 0, 0, TAU); ctx.fill() }
     ctx.restore()
   }
-  particles = particles.filter(particle => particle.life > 0)
-  for (const gesture of gestures.values()) {
-    const charge = Math.min((time - gesture.start) / 2200, 1)
-    ctx.strokeStyle = colors[gesture.hue]!; ctx.lineWidth = 1; ctx.globalAlpha = .3
-    ctx.setLineDash([2, 7]); ctx.beginPath()
-    gesture.points.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y))
-    ctx.lineTo(gesture.current.x, gesture.current.y); ctx.stroke(); ctx.setLineDash([])
-    const radius = 14 + charge * 26
-    ctx.globalAlpha = .18; ctx.beginPath(); ctx.arc(gesture.current.x, gesture.current.y, radius, 0, Math.PI * 2); ctx.stroke()
-    ctx.globalAlpha = .9; ctx.lineWidth = 1.6
-    ctx.beginPath(); ctx.arc(gesture.current.x, gesture.current.y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * charge); ctx.stroke()
-    ctx.globalAlpha = 1
-    const previewSize = 25 + charge * 17
-    ctx.drawImage(sprites[gesture.hue % cats.length]!, gesture.current.x - previewSize / 2, gesture.current.y - previewSize / 2, previewSize, previewSize)
+  labels = labels.filter(l => now - l.born < 650)
+  for (const label of labels) {
+    const progress = (now - label.born) / 650
+    ctx.save(); ctx.translate(label.x, label.y - progress * (reducedMotion.matches ? 8 : 34)); ctx.rotate(label.rotation)
+    ctx.globalAlpha = Math.min(1, (1 - progress) * 2.6); ctx.fillStyle = '#ffc2c9'
+    ctx.font = '800 18px "Apple SD Gothic Neo", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(label.text, 0, 0); ctx.restore()
   }
-  if (keyboardVisible && !gestures.has(-1)) {
-    ctx.globalAlpha = .7; ctx.strokeStyle = '#fa3009'; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.arc(keyboardPoint.x, keyboardPoint.y, 11, 0, Math.PI * 2); ctx.stroke()
+  if (keyboardVisible && document.activeElement === canvas) {
+    const b = bubbles[keyboardIndex]!
+    ctx.strokeStyle = '#ffc2c9'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(b.x, b.y, b.radius + 7, 0, TAU); ctx.stroke(); ctx.setLineDash([])
   }
-  ctx.globalAlpha = 1
   requestAnimationFrame(draw)
 }
-resize()
-requestAnimationFrame(draw)
-// A quiet opening flourish, leaving the rest of the poster to the visitor.
-if (!reducedMotion.matches) {
-  const opening = performance.now() + 650
-  queue.push({ x: width * .15, y: height * .65, at: opening, power: .8, hue: 0 })
-  queue.push({ x: width * .85, y: height * .58, at: opening + 460, power: .95, hue: 1 })
-}
-// Read-only diagnostics for interaction verification.
-Object.defineProperty(window, '__catCanvas', { get: () => ({ particles: particles.length, queued: queue.length, activePointers: gestures.size, bursts: burstCount }) })
+resize(); requestAnimationFrame(draw)
+Object.defineProperty(window, '__bubblePop', { get: () => ({ pops: popCount, bubbles: bubbles.length, ready: bubbles.filter(b => inflation(b, performance.now()) >= .96).length, activePointers: pointers.size, particles: drops.length, muted, soundPlays: [...soundPlays], audioState: audio?.state ?? 'uninitialized' }) })
