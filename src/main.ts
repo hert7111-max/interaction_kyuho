@@ -1,256 +1,201 @@
 import './style.css'
 
-// The reference face is drawn in independent SVG layers so eyes, muzzle,
-// ears, and the head can follow the same point at different depths.
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<main class="scene" id="scene">
-  <header class="header">
-    <a class="wordmark" href="./" aria-label="느릿, 처음으로">느릿<span>∙</span></a>
-    <span class="edition">A LITTLE EYE CONTACT</span>
-    <button id="reset" class="reset" type="button" aria-label="정면 바라보기"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.7 7M4 4v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>다시 정면</span></button>
-  </header>
-  <section class="portrait" aria-label="포인터를 따라 바라보는 야도란">
-    <div class="orb-wrap" id="orb" tabindex="0" role="button" aria-label="야도란에게 윙크 부탁하기. 방향키로 시선을 옮기고 스페이스 또는 엔터로 윙크하고 입을 닫았다 열어요.">
-      <div class="aura" aria-hidden="true"></div>
-      <svg class="character" viewBox="0 0 600 600" aria-hidden="true">
-        <defs>
-          <radialGradient id="glass" cx="31%" cy="23%" r="85%"><stop stop-color="#eed8e7" stop-opacity=".16"/><stop offset=".5" stop-color="#ba7194" stop-opacity=".06"/><stop offset=".85" stop-color="#784b70" stop-opacity=".1"/><stop offset="1" stop-color="#e6adc9" stop-opacity=".26"/></radialGradient>
-          <radialGradient id="pink" gradientUnits="userSpaceOnUse" cx="216" cy="238" r="330" fx="190" fy="205"><stop stop-color="#ffd1de"/><stop offset=".28" stop-color="#f5adc5"/><stop offset=".55" stop-color="#df89aa"/><stop offset=".79" stop-color="#ba648d"/><stop offset="1" stop-color="#874466"/></radialGradient>
-          <radialGradient id="ear" cx="31%" cy="24%" r="85%"><stop stop-color="#ffced9"/><stop offset=".45" stop-color="#ed9bb7"/><stop offset=".78" stop-color="#c57898"/><stop offset="1" stop-color="#965172"/></radialGradient>
-          <radialGradient id="ear-inset" cx="65%" cy="70%" r="80%"><stop stop-color="#efacc1"/><stop offset=".6" stop-color="#c37496"/><stop offset="1" stop-color="#a0597d"/></radialGradient>
-          <radialGradient id="cream" gradientUnits="userSpaceOnUse" cx="248" cy="311" r="205" gradientTransform="translate(0 117) scale(1 .63)"><stop stop-color="#ffffed"/><stop offset=".33" stop-color="#f8f4d6"/><stop offset=".65" stop-color="#e6deaf"/><stop offset=".88" stop-color="#c4b985"/><stop offset="1" stop-color="#a99b6e"/></radialGradient>
-          <linearGradient id="chin" x1=".15" y1="0" x2=".65" y2="1"><stop stop-color="#fff5ce"/><stop offset=".5" stop-color="#e0d2a3"/><stop offset=".85" stop-color="#b6a17b"/><stop offset="1" stop-color="#9e896a"/></linearGradient>
-          <radialGradient id="mouth" cx="51%" cy="80%" r="85%"><stop stop-color="#af3b60"/><stop offset=".55" stop-color="#842c48"/><stop offset="1" stop-color="#3c2032"/></radialGradient>
-          <radialGradient id="tongue" cx="42%" cy="20%" r="90%"><stop stop-color="#ff9fba"/><stop offset=".55" stop-color="#e97c9f"/><stop offset="1" stop-color="#be547a"/></radialGradient>
-          <radialGradient id="eye-white" cx="31%" cy="24%" r="90%"><stop stop-color="#fffffc"/><stop offset=".6" stop-color="#fafaf0"/><stop offset="1" stop-color="#d6d5c5"/></radialGradient>
-          <radialGradient id="cheek-light"><stop stop-color="#ffd5e0" stop-opacity=".38"/><stop offset="1" stop-color="#ffd5e0" stop-opacity="0"/></radialGradient>
-          <radialGradient id="head-highlight"><stop stop-color="#fff0f5" stop-opacity=".48"/><stop offset="1" stop-color="#fff0f5" stop-opacity="0"/></radialGradient>
-          <radialGradient id="soft-shadow"><stop stop-color="#71354e" stop-opacity=".55"/><stop offset="1" stop-color="#71354e" stop-opacity="0"/></radialGradient>
-          <filter id="muzzle-depth" x="-20%" y="-30%" width="140%" height="170%"><feDropShadow dx="1" dy="8" stdDeviation="7" flood-color="#74374e" flood-opacity=".32"/></filter>
-          <linearGradient id="rim" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffe2ef" stop-opacity=".75"/><stop offset=".25" stop-color="#f7b6d6" stop-opacity=".09"/><stop offset=".6" stop-color="#ec9cc9" stop-opacity=".12"/><stop offset="1" stop-color="#fac6e2" stop-opacity=".5"/></linearGradient>
-          <radialGradient id="reflection"><stop stop-color="#fff4fb" stop-opacity=".45"/><stop offset="1" stop-color="#fff4fb" stop-opacity="0"/></radialGradient>
-          <clipPath id="sphere-clip"><circle cx="300" cy="300" r="267"/></clipPath>
-          <clipPath id="mouth-clip"><path d="M155 359Q300 339 447 359C428 412 377 451 302 451C226 450 175 410 155 359Z"/></clipPath>
-        </defs>
-        <circle cx="300" cy="300" r="268" fill="#21161f"/>
-        <circle cx="300" cy="300" r="267" fill="url(#glass)"/>
-        <g clip-path="url(#sphere-clip)">
-          <g id="head">
-            <g class="ears" stroke="#b57694" stroke-width="1.8">
-              <ellipse cx="145" cy="190" rx="52" ry="54" transform="rotate(-30 145 190)" fill="url(#ear)"/>
-              <ellipse cx="455" cy="190" rx="52" ry="54" transform="rotate(30 455 190)" fill="url(#ear)"/>
-              <ellipse cx="145" cy="193" rx="28" ry="30" fill="url(#ear-inset)" stroke="none"/>
-              <ellipse cx="455" cy="193" rx="28" ry="30" fill="url(#ear-inset)" stroke="none"/>
-              <path d="M141 211C112 201 126 169 142 172C157 170 164 187 154 199M459 211C488 201 474 169 458 172C443 170 436 187 446 199" fill="none" stroke="#a95f81" stroke-width="2.8" stroke-linecap="round"/>
-              <path d="M112 172Q122 153 144 151M435 152Q455 145 474 162" fill="none" stroke="#ffe0e6" stroke-width="4" stroke-linecap="round" opacity=".44"/>
-            </g>
-            <path d="M111 312C112 223 169 164 295 163C418 160 483 219 490 309C503 350 512 393 493 436C466 505 390 541 300 543C207 541 131 505 105 439C86 394 98 348 111 312Z" fill="url(#pink)" stroke="#ad698a" stroke-width="1.5"/>
-            <ellipse cx="215" cy="211" rx="107" ry="55" transform="rotate(-18 215 211)" fill="url(#head-highlight)"/>
-            <ellipse cx="137" cy="350" rx="47" ry="100" fill="url(#cheek-light)" transform="rotate(10 137 350)"/>
-            <ellipse cx="458" cy="365" rx="42" ry="89" fill="url(#cheek-light)" opacity=".32"/>
-            <ellipse cx="313" cy="462" rx="158" ry="54" fill="url(#soft-shadow)"/>
-            <path d="M118 330Q100 391 121 430" fill="none" stroke="#ffd3df" stroke-width="5" stroke-linecap="round" opacity=".19"/>
-            <g id="features">
-              <g transform="translate(216 282) rotate(13)">
-                <g id="left-eye"><ellipse rx="36" ry="49" fill="url(#eye-white)" stroke="#90717b" stroke-width="2.1"/><ellipse cx="-9" cy="-12" rx="12" ry="24" fill="#fff" opacity=".7"/><g id="left-pupil"><ellipse rx="4.4" ry="8" fill="#39313e"/><circle cx="-1.2" cy="-2.7" r="1.4" fill="#fff"/></g></g>
-                <path id="left-closed" d="M-27 6Q-3-12 24 2" fill="none" stroke="#754457" stroke-width="4" stroke-linecap="round" opacity="0"/>
-              </g>
-              <g transform="translate(387 282) rotate(-13)">
-                <g id="right-eye"><ellipse rx="36" ry="49" fill="url(#eye-white)" stroke="#90717b" stroke-width="2.1"/><ellipse cx="-9" cy="-12" rx="12" ry="24" fill="#fff" opacity=".7"/><g id="right-pupil"><ellipse rx="4.4" ry="8" fill="#39313e"/><circle cx="-1.2" cy="-2.7" r="1.4" fill="#fff"/></g></g>
-                <path id="right-closed" d="M-24 2Q3-12 27 6" fill="none" stroke="#754457" stroke-width="4" stroke-linecap="round" opacity="0"/>
-              </g>
-              <g id="muzzle">
-                <ellipse cx="304" cy="391" rx="180" ry="58" fill="url(#soft-shadow)"/>
-                <g id="lower-jaw">
-                  <path d="M138 350C140 323 217 309 297 312C382 310 455 322 466 349C480 386 407 473 304 477C203 475 126 389 138 350Z" fill="url(#chin)" stroke="#ac9776" stroke-width="1.8"/>
-                  <path d="M155 359Q300 339 447 359C428 412 377 451 302 451C226 450 175 410 155 359Z" fill="url(#mouth)" stroke="#81505b" stroke-width="2"/>
-                  <g clip-path="url(#mouth-clip)">
-                    <ellipse cx="305" cy="447" rx="94" ry="42" fill="url(#tongue)"/>
-                    <path d="M222 433Q266 406 309 414" fill="none" stroke="#ffb7ca" stroke-width="3" stroke-linecap="round" opacity=".25"/>
-                    <path d="M183 364L197 395Q204 403 215 367M392 366L405 393Q412 401 423 366" fill="#fffcec" stroke="#a59b83" stroke-width="1.6" stroke-linejoin="round"/>
-                  </g>
-                  <path d="M171 399Q211 457 278 464" fill="none" stroke="#fff0cb" stroke-width="3" stroke-linecap="round" opacity=".34"/>
-                </g>
-                <g filter="url(#muzzle-depth)">
-                  <path d="M128 340C139 315 187 311 233 291Q295 265 349 290C398 308 455 310 470 338C496 377 426 387 375 376C328 366 279 367 231 379C180 391 109 376 128 340Z" fill="url(#cream)" stroke="#b3a87f" stroke-width="1.8"/>
-                  <ellipse cx="240" cy="314" rx="84" ry="25" fill="url(#head-highlight)" opacity=".65"/>
-                  <path d="M149 338C176 320 204 320 237 303" fill="none" stroke="#ffffed" stroke-width="4" stroke-linecap="round" opacity=".45"/>
-                  <path d="m273 321 6 8m47-9-6 8" stroke="#8d8265" stroke-width="3.7" stroke-linecap="round"/>
-                </g>
-                <path id="mouth-seam" d="M151 366C188 388 235 372 270 370Q302 365 336 370C374 375 424 387 450 366" fill="none" stroke="#967950" stroke-width="2.2" stroke-linecap="round" opacity="0"/>
-              </g>
-            </g>
-          </g>
-          <ellipse cx="180" cy="130" rx="90" ry="45" fill="url(#reflection)" transform="rotate(-37 180 130)"/>
-          <path d="M74 248C87 167 137 103 205 78" fill="none" stroke="#fff2fc" stroke-width="5" stroke-linecap="round" opacity=".33"/>
-          <path d="M83 219C91 189 103 168 119 146" fill="none" stroke="#fff5fc" stroke-width="2" stroke-linecap="round" opacity=".55"/>
-          <path d="M431 513Q494 472 518 418" fill="none" stroke="#ffbddf" stroke-width="3" stroke-linecap="round" opacity=".2"/>
-        </g>
-        <circle cx="300" cy="300" r="268" fill="none" stroke="url(#rim)" stroke-width="2"/>
-        <circle cx="300" cy="300" r="262" fill="none" stroke="#f8c4dc" stroke-opacity=".06"/>
-      </svg>
-      <span class="spark spark-one" aria-hidden="true">✦</span><span class="spark spark-two" aria-hidden="true">✧</span>
-    </div>
-    <div class="orb-shadow" aria-hidden="true"></div>
-    <div class="caption"><span class="character-name">SLOWBRO</span><span class="caption-line"></span><span id="mood">조금 느려도, 널 보고 있어.</span></div>
-  </section>
-  <footer class="footer">
-    <span class="footer-note"><i></i>서두르지 않아도 괜찮아.</span>
-    <div class="instructions"><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 3 10 7-5 1-2 5-3-13Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>움직이면 눈맞춤</span><span class="separator"></span><button id="wink" type="button"><span class="wink-icon">◡</span>클릭하면 찡긋 · 냠</button></div>
-    <span class="footer-edition">TAKE IT SLOW. ↗</span>
-  </footer>
-  <span class="sr-only" id="announcement" role="status" aria-live="polite"></span>
-</main>`
-
-const orb = document.querySelector<HTMLDivElement>('#orb')!
-const head = document.querySelector<SVGGElement>('#head')!
-const features = document.querySelector<SVGGElement>('#features')!
-const muzzle = document.querySelector<SVGGElement>('#muzzle')!
-const lowerJaw = document.querySelector<SVGGElement>('#lower-jaw')!
-const mouthSeam = document.querySelector<SVGPathElement>('#mouth-seam')!
-const mood = document.querySelector('#mood')!
-const eyes = ['left', 'right'].map(side => ({ eye: document.querySelector<SVGGElement>(`#${side}-eye`)!, pupil: document.querySelector<SVGGElement>(`#${side}-pupil`)!, closed: document.querySelector<SVGPathElement>(`#${side}-closed`)! }))
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
-const WINK_DURATION = 920
-let target = { x: 0, y: 0 }, gaze = { x: 0, y: 0 }, pupils = { x: 0, y: 0 }
-let winkAt = -Infinity, winkSide = 1, winkCount = 0
-let blinkAt = -Infinity, nextBlink = performance.now() + 4200
-let lockUntil = 0, returnAt = Infinity
-let pendingTarget = { x: 0, y: 0 }
-let lastFrame = performance.now()
-let leftOpen = 1, rightOpen = 1, mouthOpen = 1
-let touching = false
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-
-function pointToGaze(x: number, y: number) {
-  const rect = orb.getBoundingClientRect()
-  const dx = (x - rect.left - rect.width / 2) / Math.max(1, rect.width * .82)
-  const dy = (y - rect.top - rect.height / 2) / Math.max(1, rect.height * .82)
-  // A circular limit keeps the pupils safely inside the eye whites at corners.
-  const distance = Math.hypot(dx, dy)
-  const scale = distance > 1 ? 1 / distance : 1
-  return { x: dx * scale, y: dy * scale }
+// Everything visible is drawn on this single, edge-to-edge surface.
+document.querySelector<HTMLDivElement>('#app')!.innerHTML = '<canvas id="city" tabindex="0" role="application" aria-label="도시 파노라마. 클릭하거나 터치하면 무작위 건물이 분리되어 파랑, 초록, 흰색 블록으로 변합니다. 엔터 또는 스페이스로도 조작할 수 있습니다."></canvas>'
+const canvas = document.querySelector<HTMLCanvasElement>('#city')!
+const ctx = canvas.getContext('2d')!
+const motion = matchMedia('(prefers-reduced-motion: reduce)')
+const WORLD_W = 2000, WORLD_H = 1000
+const palette = ['#3157d5', '#255ec1', '#1d8680', '#2a9a78', '#a9cdb7', '#e7eee8', '#d8e9ed', '#74a8c7', '#17457e']
+const facades = ['#a5b7b8', '#c5ceca', '#a8b8c1', '#6c8b96', '#9bafb2', '#809a9b', '#bac8c5']
+type Piece = { x: number; y: number; w: number; h: number; dx: number; dy: number; depth: number; delay: number; color: string }
+type Building = { id: number; x: number; y: number; w: number; h: number; depth: number; layer: number; kind: number; seed: number; solid: boolean; color: string; image: HTMLCanvasElement; started: number; pieces: Piece[]; cycle: number }
+let width = innerWidth, height = innerHeight, scale = 1, offsetX = 0
+let framePending = false, lastTime = performance.now(), clicks = 0
+let lastSelected = -1
+let seed = 753104
+const buildings: Building[] = []
+const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
+const range = (a: number, b: number) => a + random() * (b - a)
+const choose = <T,>(items: T[]) => items[Math.floor(random() * items.length)]!
+const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
+function shade(hex: string, factor: number) {
+  return '#' + [1, 3, 5].map(i => Math.round(clamp(parseInt(hex.slice(i, i + 2), 16) * factor, 0, 255)).toString(16).padStart(2, '0')).join('')
 }
-function lookAt(x: number, y: number, now = performance.now()) {
-  pendingTarget = pointToGaze(x, y)
-  if (now >= lockUntil) target = { ...pendingTarget }
-  returnAt = Infinity
+function polygon(c: CanvasRenderingContext2D, points: number[][], fill?: string) {
+  c.beginPath(); points.forEach((p, i) => i ? c.lineTo(p[0]!, p[1]!) : c.moveTo(p[0]!, p[1]!)); c.closePath()
+  if (fill) { c.fillStyle = fill; c.fill() }
 }
-function wink(now = performance.now()) {
-  winkAt = now
-  winkSide = target.x < -.12 ? 0 : 1
-  winkCount++
-  lockUntil = now + 440
-  // Do not let an automatic blink close the other eye during the wink.
-  blinkAt = -Infinity; nextBlink = now + 3500 + Math.random() * 2500
-  mood.textContent = '너한테만, 찡긋.'
-  orb.classList.add('is-winking')
-  document.querySelector('#announcement')!.textContent = '야도란이 바라보며 윙크하고 입을 닫았다 열어요.'
+function outline(c: CanvasRenderingContext2D, w: number, h: number, kind: number) {
+  if (kind === 1) polygon(c, [[0,h],[0,h*.22],[w*.13,h*.22],[w*.13,h*.1],[w*.28,h*.1],[w*.28,0],[w*.72,0],[w*.72,h*.1],[w*.87,h*.1],[w*.87,h*.22],[w,h*.22],[w,h]])
+  else if (kind === 2) polygon(c, [[0,h],[0,h*.12],[w*.15,h*.12],[w*.15,0],[w*.83,0],[w*.83,h*.12],[w,h*.12],[w,h]])
+  else c.rect(0, 0, w, h)
 }
-function center() {
-  target = { x: 0, y: 0 }; pendingTarget = { ...target }
-  lockUntil = 0; returnAt = Infinity; touching = false
-}
-function eyelid(now: number, started: number, duration: number, hold: number) {
-  const p = (now - started) / duration
-  if (p < 0 || p >= 1) return 1
-  if (p < .15) return 1 - Math.sin(p / .15 * Math.PI / 2) * .97
-  if (p < hold) return .03
-  const t = (p - hold) / (1 - hold)
-  return .03 + .97 * (t * t * (3 - 2 * t))
-}
-
-window.addEventListener('pointermove', event => {
-  if (event.pointerType === 'touch' && !touching) return
-  lookAt(event.clientX, event.clientY)
-})
-window.addEventListener('pointerdown', event => {
-  if (event.pointerType === 'mouse' && event.button !== 0) return
-  const element = event.target as Element | null
-  if (element?.closest('button, a')) return
-  if (event.pointerType === 'touch') { touching = true; event.preventDefault() }
-  // A new click must override any previous wink's gaze lock.
-  lockUntil = 0; lookAt(event.clientX, event.clientY); wink()
-})
-window.addEventListener('pointerup', event => {
-  if (event.pointerType === 'touch') { touching = false; returnAt = performance.now() + 1900 }
-})
-window.addEventListener('pointercancel', () => { touching = false; center() })
-document.documentElement.addEventListener('pointerleave', () => { if (!touching) returnAt = performance.now() + 550 })
-window.addEventListener('blur', center)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) center()
-  lastFrame = performance.now(); nextBlink = lastFrame + 4000
-})
-document.querySelector('#reset')!.addEventListener('click', () => { center(); winkAt = -Infinity; mood.textContent = '조금 느려도, 널 보고 있어.'; orb.classList.remove('is-winking') })
-document.querySelector('#wink')!.addEventListener('click', () => wink())
-orb.addEventListener('click', event => { if (event.detail === 0) wink() })
-orb.addEventListener('keydown', event => {
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'Home'].includes(event.key)) return
-  event.preventDefault()
-  if (event.key === 'Home') center()
-  else if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) wink()
+function makeFacade(b: Building) {
+  const image = document.createElement('canvas')
+  image.width = Math.ceil(b.w + b.depth + 8); image.height = Math.ceil(b.h + b.depth + 110)
+  const c = image.getContext('2d')!
+  const localSeed = seed; seed = b.seed
+  c.translate(2, b.depth + 94)
+  const w = b.w, h = b.h, d = b.depth, base = b.solid ? b.color : choose(facades)
+  const side = b.solid ? shade(base, .65) : '#294a5c'
+  if(b.kind===0) polygon(c, [[w,0],[w+d,-d*.48],[w+d,h-d*.48],[w,h]], side)
+  else { c.save();c.translate(d,-d*.48);c.beginPath();outline(c,w,h,b.kind);c.fillStyle=side;c.fill();c.restore() }
+  // Thin, regular rows on the shaded side retain the scale of real architecture.
+  if (!b.solid && b.kind===0) {
+    for (let y = 7; y < h; y += 11) { c.strokeStyle = '#99aeb234'; c.lineWidth = .8; c.beginPath(); c.moveTo(w,y); c.lineTo(w+d,y-d*.48); c.stroke() }
+  }
+  c.save(); c.beginPath(); outline(c,w,h,b.kind); c.clip()
+  c.fillStyle = base; c.fillRect(0,0,w,h)
+  if (!b.solid) {
+    const style = Math.floor(range(0,4)), cols = Math.max(3,Math.floor(w / range(9,16))), cell = w / cols
+    const floor = style === 2 ? 9 : range(10,15)
+    const margin = style === 1 ? .23 : .16
+    for (let y = 8; y < h - 4; y += floor) {
+      c.fillStyle = style === 2 ? '#d7e0dd5c' : '#344d6038'; c.fillRect(0,y-2,w,1)
+      for (let col = 0; col < cols; col++) {
+        const x = col * cell + cell * margin, ww = cell * (1-margin*2), hh = floor * range(.49,.66)
+        const r = random()
+        c.fillStyle = r < .08 ? '#b8ced1' : r < .3 ? '#3e5b6b' : r < .8 ? '#213e51' : '#6d939f'
+        c.fillRect(x,y,ww,hh)
+        c.fillStyle = '#e3e9de66'; c.fillRect(x,y,ww,.8)
+        c.fillStyle = '#101f3038'; c.fillRect(x+ww,y,1,hh+1)
+        if (style === 0 || style === 2) { c.fillStyle = '#b1c2bf7a'; c.fillRect(x+ww*.47,y,.7,hh) }
+        if (r > .95 && style !== 2) { c.fillStyle = '#a1afab'; c.fillRect(x+ww*.35,y+hh-2,ww*.7,3) }
+      }
+      if (style === 1 && Math.floor(y/floor)%4===0) { c.fillStyle = '#c5cfbf85'; c.fillRect(0,y+floor-3,w,2) }
+    }
+    // Narrow pilasters, cornices, rooftop machinery, and uneven facade grain.
+    if (style !== 2) for (let x=0; x<w; x+=cell*3) { c.fillStyle='#d4d9cb5c'; c.fillRect(x,0,2,h) }
+    for (let i=0; i<w*h/65; i++) { c.fillStyle = random()>.5 ? '#f0f5e00e' : '#06162812'; c.fillRect(range(0,w),range(0,h),range(1,3),range(1,6)) }
+    c.fillStyle = '#d1dbcd'; c.fillRect(0,0,w,4)
+    c.fillStyle = '#233b4b99'; c.fillRect(0,5,w,2)
+    c.fillStyle = '#182c4055'; c.fillRect(w-4,0,4,h)
+  }
+  c.restore()
+  // Rooftop and setbacks are cut as architectural silhouettes, never labels.
+  if (b.kind === 0) polygon(c, [[0,0],[d,-d*.48],[w+d,-d*.48],[w,0]], b.solid ? shade(base,1.08) : '#c7d2cb')
   else {
-    const step = .25
-    if (event.key === 'ArrowLeft') pendingTarget.x -= step
-    if (event.key === 'ArrowRight') pendingTarget.x += step
-    if (event.key === 'ArrowUp') pendingTarget.y -= step
-    if (event.key === 'ArrowDown') pendingTarget.y += step
-    const length = Math.hypot(pendingTarget.x, pendingTarget.y)
-    if (length > 1) { pendingTarget.x /= length; pendingTarget.y /= length }
-    target = { ...pendingTarget }; returnAt = Infinity; lockUntil = 0
+    const steps = b.kind === 1 ? [[.28,0,.72],[.13,.1,.28],[.72,.1,.87],[0,.22,.13],[.87,.22,1]] : [[.15,0,.83],[0,.12,.15],[.83,.12,1]]
+    for(const [left,top,right] of steps) polygon(c, [[left!*w,top!*h],[left!*w+d,top!*h-d*.48],[right!*w+d,top!*h-d*.48],[right!*w,top!*h]],b.solid ? shade(base,1.07) : '#bfcac5')
   }
-})
-
-function mouthOpenness(now: number) {
-  const p = (now - winkAt) / WINK_DURATION
-  if (p < 0 || p >= 1) return 1
-  const smooth = (t: number) => t * t * (3 - 2 * t)
-  if (p < .25) return 1 - .98 * smooth(p / .25)
-  if (p < .44) return .02
-  return .02 + .98 * smooth((p - .44) / .56)
+  if (!b.solid && b.kind === 0 && b.layer > 0) {
+    for(let i=0;i<Math.floor(w/48);i++) { const x=range(8,w-20), rw=range(10,23), rh=range(6,17); c.fillStyle='#314c59'; c.fillRect(x,-rh,rw,rh); polygon(c,[[x,-rh],[x+5,-rh-3],[x+rw+5,-rh-3],[x+rw,-rh]],'#a3b6b4') }
+  }
+  if (b.kind === 1) {
+    const x=w*.5
+    c.fillStyle='#38505d'; c.fillRect(x-5,-64,10,64)
+    c.fillStyle='#b2c7c6'; c.fillRect(x-3,-65,3,65)
+    c.strokeStyle='#264754'; c.lineWidth=1.4; c.beginPath(); c.moveTo(x,-65); c.lineTo(x,-104); c.stroke()
+    c.fillStyle='#647e87'; c.fillRect(x-8,-19,16,4)
+  }
+  seed=localSeed
+  return image
 }
-
-function animate(now: number) {
-  const dt = clamp((now - lastFrame) / 1000, 0, .05); lastFrame = now
-  if (now >= returnAt) center()
-  if (now >= lockUntil) target = { ...pendingTarget }
-  const headRate = 1 - Math.exp(-dt * (reducedMotion.matches ? 22 : 7.5))
-  const eyeRate = 1 - Math.exp(-dt * 16)
-  gaze.x += (target.x - gaze.x) * headRate; gaze.y += (target.y - gaze.y) * headRate
-  pupils.x += (target.x - pupils.x) * eyeRate; pupils.y += (target.y - pupils.y) * eyeRate
-  const winkProgress = (now - winkAt) / WINK_DURATION
-  const winkActive = winkProgress >= 0 && winkProgress < 1
-  if (!winkActive && now >= nextBlink) { blinkAt = now; nextBlink = now + 4000 + Math.random() * 3000 }
-  const blink = eyelid(now, blinkAt, 190, .26)
-  const winkOpen = eyelid(now, winkAt, WINK_DURATION, .55)
-  leftOpen = winkActive && winkSide === 0 ? winkOpen : blink
-  rightOpen = winkActive && winkSide === 1 ? winkOpen : blink
-  // Small layered translations read as a rounded face turning inside the orb.
-  head.setAttribute('transform', `translate(${gaze.x * 9} ${gaze.y * 6}) rotate(${gaze.x * 2.4} 300 330)`)
-  features.setAttribute('transform', `translate(${gaze.x * 16} ${gaze.y * 11})`)
-  const smile = winkActive ? Math.sin(clamp(winkProgress * 1.6, 0, 1) * Math.PI) : 0
-  muzzle.setAttribute('transform', `translate(${gaze.x * 3} ${gaze.y * 2 - smile * 2})`)
-  mouthOpen = mouthOpenness(now)
-  // Raise the jaw toward the upper lip, keeping the snout solid.
-  lowerJaw.setAttribute('transform', `translate(0 360) scale(1 ${mouthOpen}) translate(0 -360)`)
-  mouthSeam.setAttribute('opacity', String(clamp((.3 - mouthOpen) / .28, 0, 1)))
-  for (let i = 0; i < eyes.length; i++) {
-    const eye = eyes[i]!, open = i === 0 ? leftOpen : rightOpen
-    eye.eye.setAttribute('transform', `scale(1 ${open})`)
-    eye.eye.setAttribute('opacity', open < .08 ? '0' : '1')
-    eye.closed.setAttribute('opacity', String(clamp((.25 - open) / .17, 0, 1)))
-    // Counter-rotate the gaze offset to match each tilted eye's local axes.
-    const angle = (i === 0 ? -13 : 13) * Math.PI / 180
-    const px = pupils.x * 15, py = pupils.y * 25
-    eye.pupil.setAttribute('transform', `translate(${px * Math.cos(angle) - py * Math.sin(angle)} ${px * Math.sin(angle) + py * Math.cos(angle)})`)
-  }
-  orb.style.setProperty('--look-x', String(gaze.x))
-  orb.style.setProperty('--look-y', String(gaze.y))
-  if (!winkActive && orb.classList.contains('is-winking')) {
-    orb.classList.remove('is-winking'); mood.textContent = '조금 느려도, 널 보고 있어.'
-  }
-  requestAnimationFrame(animate)
+function add(x:number,base:number,w:number,h:number,layer:number,kind=0,solid=false,color=choose(palette)) {
+  const building = { id:buildings.length,x,y:base-h,w,h,depth:range(10,24),layer,kind,seed:Math.floor(range(1,0xffffffff)),solid,color,image:null as unknown as HTMLCanvasElement,started:-Infinity,pieces:[],cycle:0 }
+  building.image=makeFacade(building); buildings.push(building)
 }
-requestAnimationFrame(animate)
-Object.defineProperty(window, '__slowbro', { get: () => ({ target: { ...target }, gaze: { ...gaze }, pupils: { ...pupils }, leftOpen, rightOpen, mouthOpen, winkCount, winkSide, touching, locked: performance.now() < lockUntil }) })
+// A wide photographic-style silhouette: fine facades behind large color planes.
+for(let x=-60;x<2100;x+=range(35,65)) add(x,range(710,780),range(34,69),range(95,295),0,random()>.8?2:0)
+for(let x=-90;x<2110;x+=range(68,105)) add(x,range(960,1020),range(65,108),range(230,540),1,random()>.82?2:0)
+add(-62,1020,147,624,2)
+add(120,1020,138,530,2,2)
+add(306,1020,172,726,2)
+add(500,1020,145,570,2,0,true,'#2a62bd')
+add(689,1020,164,660,2,2)
+add(903,1020,132,760,2,1)
+add(1087,1020,146,575,2)
+add(1274,1020,168,476,2,0,true,'#258e73')
+add(1488,1020,211,795,2,0,true,'#e0ebe5')
+add(1752,1020,174,688,2)
+add(1952,1020,148,810,2,0,true,'#73a3bd')
+for(let x=-100;x<2110;x+=range(88,146)) add(x,range(1070,1130),range(85,149),range(130,339),3,random()>.88?2:0,random()>.79,choose(['#2b5b8a','#126e67','#c8d6d0']))
+buildings.sort((a,b)=>a.layer-b.layer || a.y+a.h-b.y-b.h)
+
+const grain = document.createElement('canvas'); grain.width=grain.height=256
+const gc = grain.getContext('2d')!, noise=gc.createImageData(256,256)
+for(let i=0;i<noise.data.length;i+=4) { const v=Math.floor(range(70,220)); noise.data[i]=v; noise.data[i+1]=v; noise.data[i+2]=v; noise.data[i+3]=11 }
+gc.putImageData(noise,0,0)
+
+function visible(b:Building) { return (b.x+b.w+b.depth)*scale+offsetX>0 && b.x*scale+offsetX<width && b.y<930 }
+function split(b:Building, now:number) {
+  const rows=Math.max(3,Math.min(5,Math.round(b.h/165))), cols=b.w>170&&random()>.65?3:2
+  b.pieces=[]; b.started=now; b.cycle++
+  const baseColor=choose(palette)
+  for(let row=0;row<rows;row++) for(let col=0;col<cols;col++) {
+    const w=b.w/cols, h=b.h/rows
+    b.pieces.push({x:col*w,y:row*h,w,h,dx:(col-(cols-1)/2)*range(34,76)+range(-14,14),dy:Math.max(-b.y-row*h+30,-(rows-row)*range(27,48)-range(15,55)),depth:range(15,30),delay:row*35+range(0,95),color:random()>.78?choose(palette):baseColor})
+  }
+}
+function activate() {
+  const now=performance.now()
+  let candidates=buildings.filter(b=>visible(b)&&b.layer>=1&&b.kind===0&&b.h>200&&b.started===-Infinity)
+  if(!candidates.length) candidates=buildings.filter(b=>visible(b)&&b.layer>=1&&b.kind===0&&b.id!==lastSelected&&now-b.started>1800)
+  if(!candidates.length) return
+  // Tall foreground silhouettes get enough turns to make each click apparent.
+  const prominent=candidates.filter(b=>b.layer===2)
+  const b=choose(prominent.length&&random()>.25?prominent:candidates)
+  split(b,now); lastSelected=b.id; clicks++; schedule()
+}
+function drawPiece(b:Building,p:Piece,now:number) {
+  const duration=motion.matches?260:1550
+  const t=clamp((now-b.started-p.delay)/duration)
+  const ease=1-Math.pow(1-t,4)
+  const fade=clamp((t-.06)/.64)
+  const dx=motion.matches?p.dx*.45:p.dx, dy=motion.matches?p.dy*.45:p.dy
+  const x=b.x+p.x+dx*ease, y=b.y+p.y+dy*ease
+  const d=b.depth+(p.depth-b.depth)*ease
+  const sideY=d*(-.48+ease*1.08)
+  ctx.save();ctx.translate(x,y)
+  polygon(ctx,[[p.w,0],[p.w+d,sideY],[p.w+d,p.h+sideY],[p.w,p.h]],shade(p.color,.64))
+  if(sideY>=0) polygon(ctx,[[0,p.h],[p.w,p.h],[p.w+d,p.h+sideY],[d,p.h+sideY]],shade(p.color,.78))
+  else polygon(ctx,[[0,0],[d,sideY],[p.w+d,sideY],[p.w,0]],shade(p.color,1.08))
+  ctx.fillStyle=p.color;ctx.fillRect(0,0,p.w+.2,p.h+.2)
+  if(fade<1) {
+    ctx.globalAlpha=1-fade
+    ctx.drawImage(b.image,2+p.x,b.depth+94+p.y,p.w,p.h,0,0,p.w,p.h)
+    ctx.globalAlpha=1
+  }
+  ctx.restore()
+  return t<1
+}
+function draw(now=performance.now()) {
+  lastTime=now;framePending=false
+  ctx.setTransform(1,0,0,1,0,0)
+  ctx.fillStyle='#99b9be';ctx.fillRect(0,0,canvas.width,canvas.height)
+  const dpr=Math.min(devicePixelRatio||1,2)
+  ctx.setTransform(dpr,0,0,dpr,0,0)
+  const pattern=ctx.createPattern(grain,'repeat')
+  if(pattern){ctx.fillStyle=pattern;ctx.fillRect(0,0,width,height)}
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*offsetX,0)
+  // The quieter distant city remains visible in the spaces left by the pieces.
+  for(const b of buildings) {
+    if(!visible(b)||b.started!==-Infinity)continue
+    ctx.globalAlpha=b.layer===0?.46:1
+    ctx.drawImage(b.image,b.x-2,b.y-b.depth-94)
+  }
+  ctx.globalAlpha=1
+  let moving=false
+  for(const b of buildings) if(b.started!==-Infinity&&visible(b)) {
+    // Lower pieces are painted first, so the lifted blocks overlap naturally.
+    for(const p of [...b.pieces].sort((a,c)=>c.y-a.y||c.x-a.x)) if(drawPiece(b,p,now))moving=true
+  }
+  if(moving&&!document.hidden)schedule()
+}
+function schedule(){if(!framePending){framePending=true;requestAnimationFrame(draw)}}
+function resize(){
+  width=innerWidth;height=innerHeight
+  scale=Math.max(width/WORLD_W,height/WORLD_H)
+  offsetX=(width-WORLD_W*scale)/2
+  const dpr=Math.min(devicePixelRatio||1,2)
+  canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr)
+  draw(performance.now())
+}
+canvas.addEventListener('pointerdown',event=>{if(event.pointerType==='mouse'&&event.button!==0)return;event.preventDefault();activate()})
+canvas.addEventListener('keydown',event=>{if([' ','Enter'].includes(event.key)){event.preventDefault();if(!event.repeat)activate()}})
+canvas.addEventListener('contextmenu',event=>event.preventDefault())
+addEventListener('resize',resize)
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)draw(performance.now())})
+resize()
+Object.defineProperty(window,'__city',{get:()=>({clicks,buildings:buildings.length,visible:buildings.filter(visible).length,transformed:buildings.filter(b=>b.started!==-Infinity).length,pieces:buildings.reduce((n,b)=>n+b.pieces.length,0),lastSelected,scale,lastTime})})

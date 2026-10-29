@@ -3,137 +3,68 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { createContext, runInContext } from 'node:vm'
 
-// Exercise the real SVG handlers with a virtual clock, including gaze-lock timing.
-let time = 0
-const elements = new Map(), windowEvents = new Map(), documentEvents = new Map()
-const makeElement = () => {
-  const classes = new Set()
-  return { attrs: new Map(), listeners: new Map(), textContent: '', innerHTML: '', style: { setProperty() {} }, classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) },
-    setAttribute(name, value) { this.attrs.set(name, value) }, addEventListener(name, fn) { this.listeners.set(name, fn) },
-    getBoundingClientRect() { return { left: 400, top: 180, width: 480, height: 480 } } }
+const events=new Map(), globals=new Map(), docEvents=new Map()
+let time=0, requested=0
+const drawing=new Proxy({}, { get:(_,name)=>name==='createImageData'?((w,h)=>({data:new Uint8ClampedArray(w*h*4)})):name==='createPattern'?(()=>({})):()=>{},set:()=>true })
+const canvas={width:0,height:0,getContext:()=>drawing,addEventListener:(name,fn)=>events.set(name,fn)}
+const root={innerHTML:''}, preference={matches:false}
+const sandbox={document:{hidden:false,querySelector:id=>id==='#city'?canvas:root,createElement:()=>({width:0,height:0,getContext:()=>drawing}),addEventListener:(name,fn)=>docEvents.set(name,fn)},innerWidth:1440,innerHeight:900,devicePixelRatio:2,performance:{now:()=>time},matchMedia:()=>preference,addEventListener:(name,fn)=>globals.set(name,fn),requestAnimationFrame(){requested++},Math}
+sandbox.window=sandbox
+const context=createContext(sandbox)
+runInContext(stripTypeScriptTypes(readFileSync(new URL('../src/main.ts',import.meta.url),'utf8').replace("import './style.css'",''),{mode:'strip'}),context)
+const inspect=s=>runInContext(s,context)
+const state=()=>sandbox.__city
+const click=(extra={})=>events.get('pointerdown')({pointerType:'mouse',button:0,preventDefault(){},...extra})
+const advance=ms=>{time+=ms;inspect('draw(performance.now())')}
+assert.equal((root.innerHTML.match(/<canvas/g)||[]).length,1)
+assert.ok(!/<button|<p\b|<h[1-6]|<span|<a\b/.test(root.innerHTML),'Only the artwork is visible')
+assert.equal(canvas.width,2880);assert.equal(canvas.height,1800)
+assert.ok(state().buildings>70)
+assert.equal(state().transformed,0)
+assert.equal(requested,0,'The intact skyline does not waste animation frames')
+console.log('✓ Fullscreen panorama contains only a canvas, with no visible text or buttons')
+
+click();assert.equal(state().clicks,1);assert.equal(state().transformed,1)
+const first=state().lastSelected
+assert.ok(inspect('buildings.find(b=>b.id===lastSelected).pieces.length >= 6'))
+assert.ok(inspect('visible(buildings.find(b=>b.id===lastSelected))'))
+assert.ok(requested>0)
+assert.equal(inspect('drawPiece(buildings.find(b=>b.id===lastSelected),buildings.find(b=>b.id===lastSelected).pieces[0],performance.now())'),true)
+advance(2200)
+assert.equal(inspect('drawPiece(buildings.find(b=>b.id===lastSelected),buildings.find(b=>b.id===lastSelected).pieces[0],performance.now())'),false)
+const after=requested;advance(10);assert.equal(requested,after,'Animation stops after the pieces settle')
+click();assert.notEqual(state().lastSelected,first)
+assert.equal(state().transformed,2)
+console.log('✓ Each click randomly splits a visible building; texture fades and the pieces settle')
+
+for(let i=0;i<90;i++){advance(2000);click()}
+assert.ok(state().clicks>80,'Clicks remain useful after all eligible buildings have transformed')
+assert.ok(inspect('buildings.every(b=>b.pieces.length<=15)'))
+assert.ok(inspect('buildings.filter(b=>b.pieces.length).every(b=>Math.abs(b.pieces.reduce((a,p)=>a+p.w*p.h,0)-b.w*b.h)<.001)'))
+assert.ok(inspect('buildings.every(b=>b.pieces.every(p=>palette.includes(p.color)&&Number.isFinite(p.dx)&&Number.isFinite(p.dy)&&b.y+p.y+p.dy>=29.99))'))
+assert.ok(state().pieces<=state().buildings*15)
+console.log('✓ Fragments cover each original facade exactly, use the cool palette, and remain within a bounded budget')
+
+const count=state().clicks
+click({button:2});assert.equal(state().clicks,count)
+click({pointerType:'touch'});assert.equal(state().clicks,count+1)
+events.get('keydown')({key:'Enter',repeat:false,preventDefault(){}})
+assert.equal(state().clicks,count+2)
+events.get('keydown')({key:' ',repeat:true,preventDefault(){}})
+assert.equal(state().clicks,count+2)
+console.log('✓ Touch and keyboard work; secondary clicks and held keys do not duplicate actions')
+
+for(const [w,h] of [[390,844],[320,568],[844,390],[2560,1080]]){
+  const previous=state().transformed
+  sandbox.innerWidth=w;sandbox.innerHeight=h;globals.get('resize')()
+  assert.equal(state().transformed,previous,'Resize preserves transformed buildings')
+  assert.ok(state().scale*2000>=w&&state().scale*1000>=h,'Panorama covers both viewport dimensions')
+  const id=state().lastSelected;advance(2000);click()
+  assert.notEqual(state().lastSelected,id)
+  assert.ok(inspect('visible(buildings.find(b=>b.id===lastSelected))'))
 }
-const element = id => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id) }
-const sandbox = {
-  document: { querySelector: element, documentElement: element('root'), hidden: false, addEventListener: (name, fn) => documentEvents.set(name, fn) },
-  performance: { now: () => time }, matchMedia: () => ({ matches: false }), requestAnimationFrame() {}, Math,
-  addEventListener: (name, fn) => windowEvents.set(name, fn),
-}
-sandbox.window = sandbox
-const context = createContext(sandbox)
-const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8').replace("import './style.css'", '')
-runInContext(stripTypeScriptTypes(source, { mode: 'strip' }), context)
-const inspect = value => runInContext(value, context)
-const state = () => sandbox.__slowbro
-const frames = (duration, interval = 1000 / 60) => { const end = time + duration; while (time < end) { time = Math.min(end, time + interval); inspect('animate(performance.now())') } }
-const pointer = (name, x, y, extra = {}) => windowEvents.get(name)({ clientX: x, clientY: y, pointerType: 'mouse', button: 0, target: { closest: () => null }, preventDefault() {}, ...extra })
-const reset = () => { element('#reset').listeners.get('click')(); frames(800) }
-
-pointer('pointermove', 1080, 100)
-const target = { ...state().target }
-assert.ok(target.x > 0 && target.y < 0)
-frames(16)
-assert.ok(state().gaze.x > 0 && state().gaze.x < target.x, 'Face eases instead of snapping')
-assert.ok(state().pupils.x > state().gaze.x, 'Eyes lead the head')
-frames(900)
-assert.ok(Math.abs(state().gaze.x - target.x) < .01)
-assert.ok(Math.abs(state().gaze.y - target.y) < .01)
-assert.ok(element('#head').attrs.get('transform').includes('rotate('))
-assert.ok(element('#features').attrs.get('transform').includes('translate('))
-console.log('✓ Eyes and facial features follow the pointer smoothly; eyes lead the head')
-
-for (const [x, y] of [[-10000, -10000], [10000, -10000], [10000, 10000], [-10000, 10000]]) {
-  pointer('pointermove', x, y); frames(600)
-  assert.ok(Math.hypot(state().target.x, state().target.y) <= 1.00001)
-  const { x: px, y: py } = state().pupils
-  assert.ok((px * 15 / 25) ** 2 + (py * 25 / 44) ** 2 < 1, 'Pupils stay inside eye whites')
-}
-console.log('✓ Gaze stays bounded at all four screen corners')
-
-reset()
-pointer('pointerdown', 1050, 420)
-assert.equal(state().winkSide, 1)
-assert.equal(state().locked, true)
-frames(180)
-assert.ok(state().rightOpen < .08)
-assert.equal(state().leftOpen, 1, 'Only one eye closes for a wink')
-pointer('pointermove', 0, 420)
-assert.ok(state().target.x > 0, 'Wink initially holds the clicked point')
-frames(300)
-assert.ok(state().target.x < 0, 'Tracking resumes after a short hold')
-frames(500)
-assert.equal(state().rightOpen, 1)
-assert.equal(state().leftOpen, 1)
-assert.equal(element('#orb').classList.contains('is-winking'), false)
-pointer('pointerdown', 0, 420); frames(180)
-assert.equal(state().winkSide, 0)
-assert.ok(state().leftOpen < .08)
-assert.equal(state().rightOpen, 1)
-// Repeated clicks must retarget and restart the wink immediately.
-pointer('pointerdown', 1100, 420); frames(180)
-assert.equal(state().winkSide, 1)
-assert.ok(state().rightOpen < .08)
-assert.equal(state().leftOpen, 1)
-console.log('✓ Click looks at that point and winks; repeated clicks and gaze locking behave correctly')
-
-reset()
-pointer('pointerdown', 1050, 420)
-assert.equal(state().mouthOpen, 1, 'Mouth starts open before animation')
-frames(70)
-assert.ok(state().mouthOpen > .02 && state().mouthOpen < 1, 'Jaw closes gradually')
-frames(200)
-assert.ok(state().mouthOpen <= .021, 'Mouth reaches a fully closed pose')
-assert.ok(Number(element('#mouth-seam').attrs.get('opacity')) > .95, 'Closed lips replace the open cavity')
-assert.ok(element('#lower-jaw').attrs.get('transform').includes('scale(1 0.02)'), 'The lower jaw visibly moves up')
-frames(280)
-assert.ok(state().mouthOpen > .02 && state().mouthOpen < 1, 'Jaw reopens gradually')
-pointer('pointerdown', 0, 420)
-frames(270)
-assert.ok(state().mouthOpen <= .021, 'Repeated click restarts the mouth gesture')
-frames(700)
-assert.equal(state().mouthOpen, 1)
-assert.equal(Number(element('#mouth-seam').attrs.get('opacity')), 0)
-assert.equal(state().leftOpen, 1)
-assert.equal(state().rightOpen, 1)
-console.log('✓ Click closes the lower jaw, holds closed lips, then reopens; repeated clicks recover cleanly')
-
-reset()
-pointer('pointerdown', 300, 600, { pointerType: 'touch' })
-assert.equal(state().touching, true)
-frames(120)
-assert.ok(state().target.x < 0 && state().target.y > 0)
-assert.ok(state().mouthOpen < 1, 'Touch also animates the mouth')
-pointer('pointermove', 1000, 200, { pointerType: 'touch' })
-frames(400)
-assert.ok(state().target.x > 0 && state().target.y < 0)
-pointer('pointerup', 1000, 200, { pointerType: 'touch' })
-frames(2900)
-assert.ok(Math.hypot(state().gaze.x, state().gaze.y) < .001, 'Touch returns to center after release')
-pointer('pointerdown', 0, 0, { pointerType: 'touch' })
-windowEvents.get('pointercancel')()
-assert.equal(state().touching, false)
-assert.equal(state().target.x, 0)
-console.log('✓ Touch looks and winks, follows finger movement, and returns to center')
-
-reset()
-const key = key => element('#orb').listeners.get('keydown')({ key, repeat: false, preventDefault() {} })
-key('ArrowRight'); key('ArrowUp')
-assert.ok(state().target.x > 0 && state().target.y < 0)
-const before = state().winkCount
-key('Enter'); assert.equal(state().winkCount, before + 1)
-key('Home'); assert.equal(state().target.x, 0)
-const after = state().winkCount
-pointer('pointerdown', 100, 100, { button: 2 })
-pointer('pointerdown', 100, 100, { target: { closest: () => ({}) } })
-assert.equal(state().winkCount, after, 'Secondary clicks and controls do not cause duplicate winks')
-element('#wink').listeners.get('click')(); assert.equal(state().winkCount, after + 1)
-windowEvents.get('blur')(); assert.equal(state().target.x, 0)
-console.log('✓ Keyboard navigation, wink control, reset, and blur work without duplicate clicks')
-
-reset()
-inspect('nextBlink = performance.now()'); frames(50)
-assert.ok(state().leftOpen < .1 && state().rightOpen < .1)
-frames(250)
-assert.equal(state().leftOpen, 1); assert.equal(state().rightOpen, 1)
-assert.equal(state().mouthOpen, 1, 'Automatic blinking does not close the mouth')
-for (const [id, node] of elements) for (const value of node.attrs.values()) assert.ok(!/NaN|Infinity/.test(value), `${id} has finite transforms`)
-console.log('✓ Automatic blinks reopen cleanly and all SVG transforms stay finite')
+preference.matches=true;advance(2000);click();advance(700)
+assert.equal(inspect('drawPiece(buildings.find(b=>b.id===lastSelected),buildings.find(b=>b.id===lastSelected).pieces.at(-1),performance.now())'),false)
+sandbox.document.hidden=true;docEvents.get('visibilitychange')()
+sandbox.document.hidden=false;advance(5000);docEvents.get('visibilitychange')()
+console.log('✓ Mobile, landscape, resize, reduced motion, and background restoration work')
