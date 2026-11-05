@@ -1,86 +1,102 @@
 import assert from 'node:assert/strict'
-import {readFileSync} from 'node:fs'
-import {stripTypeScriptTypes} from 'node:module'
-import {createContext,runInContext} from 'node:vm'
-const source=readFileSync(new URL('../src/main.ts',import.meta.url),'utf8').replace("import './style.css'",'')
-function setup(storage=new Map(),w=1440,h=900){
- let time=0,requested=0
- const events=new Map(),globals=new Map(),docEvents=new Map(),images=[]
- const draw=new Proxy({}, {get:()=>()=>{},set:()=>true})
- const element=()=>({width:0,height:0,getContext:()=>draw,classList:{add(){},remove(){}},style:{},addEventListener(){}})
- const canvas=element(),root={innerHTML:''};canvas.addEventListener=(k,v)=>events.set(k,v)
- const preference={matches:false}
- const sandbox={document:{hidden:false,querySelector:id=>id==='#city'?canvas:root,createElement:element,addEventListener:(k,v)=>docEvents.set(k,v)},innerWidth:w,innerHeight:h,devicePixelRatio:2,performance:{now:()=>time},matchMedia:()=>preference,requestAnimationFrame(){requested++},addEventListener:(k,v)=>globals.set(k,v),Image:class{naturalWidth=2560;naturalHeight=1707;constructor(){images.push(this)}},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},Math}
- sandbox.window=sandbox;const context=createContext(sandbox),run=s=>runInContext(s,context)
- run(stripTypeScriptTypes(source,{mode:'strip'}));if(!sandbox.__city.ready)images[0].onload()
- return{sandbox,run,root,canvas,storage,events,globals,preference,state:()=>sandbox.__city,advance(ms){time+=ms;run('draw(performance.now())')},click(x,y,extra={}){events.get('pointerdown')({clientX:x,clientY:y,pointerType:'mouse',button:0,preventDefault(){},...extra})},world(x,y,extra={}){const st=sandbox.__city;this.click(x*st.scale+st.ox,y*st.scale+st.oy,extra)},get requested(){return requested}}
+import * as THREE from 'three'
+import { ClawGame, createToys, PIT_Y, TOP_Y, EXIT, LIMITS } from '../src/claw-game.ts'
+import { createToyModel } from '../src/toys.ts'
+import { createMachine } from '../src/machine.ts'
+
+function sequence(values){let i=0;return()=>values[i++]??values.at(-1)}
+function advance(game,seconds){for(let i=0;i<Math.ceil(seconds*120);i++)game.update(1/120)}
+function runRound(game,inspect=()=>{}){
+  const phases=[game.phase]
+  for(let i=0;i<2000&&game.locked;i++){
+    game.update(1/120)
+    if(phases.at(-1)!==game.phase)phases.push(game.phase)
+    inspect(game)
+  }
+  assert.equal(game.phase,'ready','A round must finish automatically')
+  return phases
 }
-const app=setup()
-assert.ok(app.state().ready)
-assert.equal((app.root.innerHTML.match(/<canvas/g)||[]).length,1)
-assert.ok(!/<button|<p\b|<h[1-6]|<span|<a\b/.test(app.root.innerHTML))
-assert.equal(app.canvas.width,2880);assert.equal(app.canvas.height,1800)
-assert.equal(app.state().transformed,0)
-console.log('✓ Fullscreen photograph loads with no visible text or buttons')
-
-app.world(890,560)
-assert.equal(app.state().transformed,1)
-assert.equal(app.state().lastSelected,app.run('hit(890,560).id'))
-const first=app.state().lastSelected
-app.advance(2000)
-app.world(890,560)
-assert.equal(app.state().transformed,1,'Already converted buildings do not restart or revert')
-app.world(200,200)
-assert.equal(app.state().transformed,1,'Sky clicks do not affect another building')
-app.world(1000,850)
-assert.equal(app.state().transformed,2)
-assert.notEqual(app.state().lastSelected,first)
-assert.equal(app.state().lastSelected,app.run('hit(1000,850).id'))
-assert.equal(app.run('regions.filter(r=>r.pieces.length).length'),2)
-app.world(1300,1130,{button:2})
-assert.equal(app.state().transformed,2)
-app.world(1300,1130,{pointerType:'touch'})
-assert.equal(app.state().transformed,3)
-console.log('✓ Only the clicked building changes; sky and secondary clicks are ignored; touch works')
-
-assert.ok(app.run('regions.filter(r=>r.pieces.length).every(r=>Math.abs(r.pieces.reduce((n,p)=>n+p.w*p.h,0)-r.w*r.h)<.001)'))
-assert.ok(app.run('new Set(regions.flatMap(r=>r.pieces.map(p=>p.w.toFixed(2)))).size>8'))
-assert.ok(app.run('new Set(regions.flatMap(r=>r.pieces.map(p=>p.h.toFixed(2)))).size>8'))
-assert.ok(app.run('regions.every(r=>r.pieces.every(p=>colors.includes(p.color)&&p.sw>0&&p.sh>0&&Number.isFinite(p.dx)&&Number.isFinite(p.dy)))'))
-app.advance(100000)
-assert.equal(app.state().transformed,3)
-const settled=app.requested;app.advance(1000);assert.equal(app.requested,settled)
-console.log('✓ Blocks have varied random widths and heights, bright colors, and permanent settled states')
-
-const restored=setup(app.storage)
-assert.equal(restored.state().transformed,3)
-assert.deepEqual([...restored.state().selected].sort(),[...app.state().selected].sort())
-assert.equal(restored.run('JSON.stringify(regions.find(r=>r.pieces.length).pieces)'),app.run('JSON.stringify(regions.find(r=>r.pieces.length).pieces)'))
-console.log('✓ Refresh restores the same transformed buildings, colors, and geometry')
-
-app.run('for(let y=8;y<height;y+=18)for(let x=8;x<width;x+=18)activate(x,y)')
-assert.equal(app.state().complete,true)
-assert.ok(app.state().visible.every(id=>app.state().selected.includes(id)))
-app.advance(5000)
-assert.equal(app.run('mosaic.reduce((n,p)=>n+p.w*p.h,0)'),1670*1280)
-assert.ok(app.run('new Set(mosaic.map(p=>p.w.toFixed(1))).size>20'))
-const total=app.state().transformed;app.world(500,800);assert.equal(app.state().transformed,total)
-const finalReload=setup(app.storage)
-assert.equal(finalReload.state().complete,true)
-assert.equal(finalReload.run('finalAt'),-10000,'Completed mosaic is restored immediately without returning to the photo')
-console.log('✓ Converting all visible buildings fills the entire screen with solid boxes and remains complete after refresh')
-
-for(const [w,h]of [[390,844],[320,568],[844,390],[2560,1080]]){
- const mobile=setup(new Map(),w,h)
- const st=mobile.state()
- assert.ok(st.scale*1670>=w&&st.scale*1280>=h)
- mobile.click(w*.5,h*.7,{pointerType:'touch'})
- assert.equal(mobile.state().transformed,1)
- const before=mobile.state().transformed
- mobile.sandbox.innerWidth=h;mobile.sandbox.innerHeight=w;mobile.globals.get('resize')()
- assert.equal(mobile.state().transformed,before)
- mobile.events.get('keydown')({key:'Enter',repeat:false,preventDefault(){}})
- assert.equal(mobile.state().transformed,before+1)
- mobile.preference.matches=true;mobile.advance(1000)
+function aim(game,toy=game.toys[0]){game.x=toy.x;game.z=toy.z;return toy}
+{
+  const game=new ClawGame()
+  game.move(1,0,1);assert.ok(game.x>0);assert.equal(game.z,-.1)
+  game.move(0,-1,1);assert.ok(game.z<-.1)
+  game.move(-1,1,100);assert.equal(game.x,-LIMITS.x);assert.equal(game.z,LIMITS.z)
+  game.move(1,-1,100);assert.equal(game.x,LIMITS.x);assert.equal(game.z,-LIMITS.z)
+  const straight=new ClawGame(),diagonal=new ClawGame();straight.move(1,0,.2);diagonal.move(1,1,.2)
+  assert.ok(Math.abs(straight.x-Math.hypot(diagonal.x,diagonal.z+.1))<1e-8)
+  console.log('✓ Four-direction movement, diagonal speed and rail boundaries')
 }
-console.log('✓ Touch targeting, keyboard access, reduced motion, and resized layouts preserve state')
+{
+  const game=new ClawGame(()=>.05),toy=aim(game),events=[]
+  game.onEvent=(event)=>events.push(event)
+  assert.equal(game.drop(),true);assert.equal(game.attempts,1)
+  let sawHeld=false,sawOutput=false
+  const phases=runRound(game,g=>{
+    if(g.locked){
+      const position=[g.x,g.y,g.z],attempts=g.attempts,phase=g.phase
+      g.move(1,1,10);assert.deepEqual([g.x,g.y,g.z],position)
+      assert.equal(g.drop(),false);assert.equal(g.reset(),false);assert.equal(g.attempts,attempts);assert.equal(g.phase,phase)
+    }
+    if(g.phase==='transporting'){assert.equal(g.y,TOP_Y);assert.ok(g.held,'Stable prize is carried toward the chute')}
+    if(g.held){sawHeld=true;assert.ok(g.held.y<g.y);assert.ok(Math.abs(g.held.x-g.x)<.05)}
+    if(toy.mode==='chute'){sawOutput=true;assert.ok(toy.y<=PIT_Y)}
+  })
+  assert.deepEqual(phases,['descending','gripping','lifting','transporting','releasing','returning','ready'])
+  assert.ok(sawHeld&&sawOutput);assert.equal(game.won,1);assert.equal(toy.mode,'won');assert.equal(toy.x,EXIT.x);assert.ok(toy.z>2.5);assert.equal(toy.y,.84)
+  assert.equal(game.lastPrize,toy);assert.equal(game.lastResult,'won');assert.equal(game.held,null);assert.equal(game.opening,1);assert.equal(game.y,TOP_Y)
+  assert.deepEqual(events,['drop','grip','win','ready'])
+  advance(game,5);assert.equal(game.won,1,'A prize cannot be counted twice')
+  assert.ok(game.reset());assert.equal(game.won,0);assert.equal(game.attempts,0);assert.equal(game.toys.length,15);assert.equal(game.lastPrize,null)
+  console.log('✓ Full automatic cycle, input lock in every phase, stable grip, visible chute delivery, one-time scoring and reset')
+}
+for(const [name,random]of [['lifting',sequence([0,.99,0,.4])],['transporting',sequence([0,.99,.99,.2])]]){
+  const game=new ClawGame(random),toy=aim(game);const events=[];game.onEvent=e=>events.push(e)
+  game.drop();let seenFalling=false;runRound(game,g=>{if(toy.mode==='falling')seenFalling=true;if(g.phase==='releasing')assert.equal(g.held,null)})
+  assert.ok(seenFalling);assert.ok(events.includes('slip'));assert.equal(game.won,0);assert.equal(toy.mode,'floor');assert.equal(toy.y,PIT_Y);assert.equal(game.lastResult,'slipped')
+  console.log(`✓ Unstable grip can slip during ${name}, fall with gravity and settle back in the machine`)
+}
+{
+  const game=new ClawGame(()=>1);aim(game);game.drop();runRound(game)
+  assert.equal(game.won,0);assert.equal(game.lastResult,'miss');assert.equal(game.held,null)
+  game.x=EXIT.x;game.z=EXIT.z;game.drop();assert.equal(game.candidate,null);runRound(game);assert.equal(game.won,0)
+  console.log('✓ Missed grabs and empty-space attempts still complete without awarding prizes')
+}
+{
+  const center=new ClawGame(sequence([.1,.65,0,.5]));aim(center);center.drop();advance(center,2.8);assert.equal(center.stable,true)
+  const edge=new ClawGame(sequence([.1,.65,0,.5]));aim(edge);edge.x+=.5;edge.drop();advance(edge,2.8);assert.equal(edge.stable,false)
+  console.log('✓ Alignment changes grip stability for the same random outcome')
+}
+{
+  const game=new ClawGame(()=>.01)
+  for(let i=0;i<15;i++){aim(game,game.toys[i]);game.drop();runRound(game);assert.equal(game.won,i+1)}
+  const position=[game.x,game.z];game.move(1,1,1);assert.deepEqual([game.x,game.z],position);assert.equal(game.drop(),false)
+  assert.ok(game.reset());assert.ok(game.toys.every(t=>t.mode==='floor'));assert.equal(game.drop(),true)
+  console.log('✓ All 15 distinct toys are collectible; completed collection can be refilled')
+}
+{
+  const toys=createToys();assert.equal(new Set(toys.map(t=>t.kind)).size,6);assert.ok(new Set(toys.map(t=>t.color)).size>=12)
+  let outlineCount=0
+  for(const toy of toys){
+    const model=createToyModel(toy);model.updateMatrixWorld(true)
+    const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3())
+    assert.ok(size.x>0&&size.y>.65&&size.y<1.5&&size.z>0)
+    assert.ok(box.min.y>-.15&&box.min.y<.05)
+    model.traverse(object=>{if(object.name==='inverted-hull-outline'){outlineCount++;assert.ok(object.material.isShaderMaterial);assert.equal(object.material.side,THREE.BackSide)}})
+    if(toy.kind==='kid'){assert.ok(model.userData.closedMouth);assert.ok(model.userData.openMouth)}
+  }
+  assert.ok(outlineCount>150)
+  // CPU-side geometry verification only; this does not stand in for WebGL/browser QA.
+  globalThis.document={createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},fillText(){}})})}
+  const machine=createMachine();machine.group.updateMatrixWorld(true)
+  assert.equal(machine.fingers.length,3)
+  assert.ok(machine.cable.geometry.isBufferGeometry)
+  const bounds=new THREE.Box3().setFromObject(machine.group)
+  assert.ok(bounds.max.y>7.9&&bounds.max.y<8.2)
+  assert.ok(bounds.min.y>=0&&bounds.min.x<-2.5&&bounds.max.x>2.5)
+  // Front opening has a clear path: intersecting the facade at its center reaches the interior, not a solid cabinet wall.
+  const ray=new THREE.Raycaster(new THREE.Vector3(EXIT.x,1.35,4),new THREE.Vector3(0,0,-1))
+  const hit=ray.intersectObject(machine.group,true)[0]
+  assert.ok(hit);assert.ok(hit.point.z<2,'No facade panel blocks the prize opening')
+  console.log(`✓ 15 procedural 3D toys, 6 shapes, shader outlines (${outlineCount}), expressions, three-finger claw and open prize hatch`)
+}
