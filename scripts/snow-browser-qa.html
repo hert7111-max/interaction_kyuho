@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>Snow browser QA</title><style>body{margin:0;background:#192e45;color:#eef7ff;font:13px monospace}#sample,#fog,#flakes{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}#sample{transform:scaleX(-1)}#fog{z-index:2}#flakes{z-index:3}pre{position:fixed;z-index:5;top:12px;left:12px;max-width:75%;padding:16px;background:#051329df;white-space:pre-wrap;line-height:1.6}</style></head><body><pre id="result">Snow · real MediaPipe integration
+Loading official sample…</pre><video id="sample" muted playsinline></video><canvas id="fog"></canvas><canvas id="flakes"></canvas><script type="module">
+import { SnowScene } from '/src/snow-scene.ts'
+import { cameraToSurface } from '/src/water-math.ts'
+const output=document.querySelector('pre'),video=document.querySelector('video'),log=text=>output.textContent+='\n'+text
+window.addEventListener('error',event=>log('FAIL: '+event.message))
+try{
+const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
+const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const ctx=source.getContext('2d');ctx.drawImage(image,0,0)
+video.srcObject=source.captureStream(30);await video.play()
+const scene=new SnowScene(document.querySelector('#flakes'),document.querySelector('#fog'),video);scene.live=true
+let previous=0
+function render(now){ctx.drawImage(image,0,0);scene.lastHumanAt=now;scene.lastTrackingAt=now;scene.update(previous?Math.min(.04,(now-previous)/1000):.016,now);previous=now;scene.render();requestAnimationFrame(render)}requestAnimationFrame(render)
+const worker=new Worker('/snow-tracker.js')
+worker.onerror=event=>log('FAIL worker: '+event.message)
+worker.onmessage=async({data})=>{
+ if(data.type==='progress')log(data.stage)
+ if(data.type==='error')log('FAIL MediaPipe: '+data.message)
+ if(data.type==='ready'){
+  log('PASS: hand, HumanSeg and face models initialized locally')
+  const bitmap=await createImageBitmap(video);worker.postMessage({type:'frame',bitmap,timestamp:performance.now(),generation:1,full:true},[bitmap])
+ }
+ if(data.type==='tracking'){
+  log((data.landmarks.length===2?'PASS':'FAIL')+': '+data.landmarks.length+' hands, both index fingertips')
+  log((data.faces?.[0]?.length>=468?'PASS':'FAIL')+': '+(data.faces?.[0]?.length??0)+' face landmarks, jawOpen='+data.jaw?.toFixed(3))
+  const coverage=data.mask.reduce((sum,x)=>sum+(x>.5),0)/data.mask.length
+  log((coverage>.1&&coverage<.95?'PASS':'FAIL')+': HumanSeg '+data.maskWidth+'×'+data.maskHeight+', person '+Math.round(coverage*100)+'%')
+  scene.setMask(data.mask,data.maskWidth,data.maskHeight,video.videoWidth/video.videoHeight);scene.showContour=true
+  const width=scene.worldWidth
+  const tip={id:'test-index',x:scene.clouds[2].x,y:scene.clouds[2].y}
+  scene.setTips([tip]);scene.update(.02,performance.now())
+  log((scene.clouds[2].activeUntil>scene.time?'PASS':'FAIL')+': index contact starts cloud snowfall')
+  scene.setTips([])
+  // Use the real segmentation field for accelerated collision verification.
+  for(let x=width*.15;x<width*.85;x+=12)scene.world.spawn(x,100,8,3)
+  for(let i=0;i<600;i++)scene.world.update(1/60,scene.human)
+  const settled=scene.world.particles.filter(p=>p.settled).length
+  log((settled>0?'PASS':'FAIL')+': '+settled+' flakes accumulated on the real HumanSeg boundary')
+  const top=data.faces?.[0]?.[13],bottom=data.faces?.[0]?.[14]
+  if(top&&bottom){
+    const point=cameraToSurface({x:(top.x+bottom.x)/2,y:(top.y+bottom.y)/2},video.videoWidth/video.videoHeight,innerWidth/innerHeight,true)
+    scene.mouth={x:point.x*width,y:(1-point.y)*900,width:55,open:true}
+    scene.breathing=true;scene.update(.06,performance.now());scene.breathing=false
+    const before=Math.max(...scene.fog.density)
+    log((before>0?'PASS':'FAIL')+': breath adds local condensation at the detected mouth')
+    const from={x:point.x-.1,y:1-point.y},to={x:point.x+.1,y:1-point.y};scene.fog.erase(from,to,.035)
+    const ix=Math.round(point.x*scene.fog.width),iy=Math.round((1-point.y)*scene.fog.height),density=scene.fog.density[iy*scene.fog.width+ix]
+    log((density<before*.1?'PASS':'FAIL')+': index stroke clears the condensation')
+    scene.mouth.open=false
+  }
+  worker.terminate()
+ }
+}
+worker.postMessage({type:'init',base:location.origin+'/'})
+}catch(error){log('FAIL: '+error.stack)}
+</script></body></html>
