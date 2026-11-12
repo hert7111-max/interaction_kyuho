@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Recreated by scripts/prepare-mediapipe.mjs before dev/build
+/public/mediapipe/

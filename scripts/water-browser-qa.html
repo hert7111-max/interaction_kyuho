@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>WaterTouch browser QA</title><style>body{background:#10252b;color:#def0df;font:18px monospace;margin:24px}canvas{width:800px;max-width:100%;display:block;margin-top:24px}pre{white-space:pre-wrap}</style></head><body><h1>WaterTouch · browser QA</h1><pre id="result">Loading official MediaPipe two-hand sample…</pre><canvas id="surface"></canvas><video id="video" muted playsinline hidden></video><script type="module">
+import { WaterRenderer } from '/src/water-renderer.ts'
+import { cameraToSurface, TIP_INDICES } from '/src/water-math.ts'
+const result=document.querySelector('#result'),video=document.querySelector('video')
+const log=text=>result.textContent+='\n'+text
+window.addEventListener('error',e=>log('FAIL: '+e.message))
+try{
+const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
+const input=document.createElement('canvas');input.width=image.width;input.height=image.height;const ctx=input.getContext('2d');ctx.drawImage(image,0,0)
+video.srcObject=input.captureStream(30);await video.play()
+const water=new WaterRenderer(document.querySelector('#surface'),video);water.cameraReady=true
+const worker=new Worker('/hand-tracker.js')
+let time=0
+function render(){ctx.drawImage(image,0,0);time+=1000/60;water.render(time,image.width/image.height);requestAnimationFrame(render)}render()
+worker.onerror=e=>log('FAIL worker: '+e.message)
+worker.onmessage=async event=>{
+ const message=event.data
+ if(message.type==='error'){log('FAIL MediaPipe: '+message.message);return}
+ if(message.type==='ready'){
+  log('PASS: local MediaPipe WASM and model initialized in classic worker')
+  const bitmap=await createImageBitmap(video);worker.postMessage({type:'frame',bitmap,timestamp:performance.now(),generation:1},[bitmap]);return
+ }
+ if(message.type==='hands'){
+  const hands=message.landmarks,tips=hands.flatMap(hand=>TIP_INDICES.map(index=>cameraToSurface(hand[index],image.width/image.height,water.aspect,true)))
+  log((hands.length===2?'PASS':'FAIL')+': '+hands.length+' hands, '+tips.length+' fingertips detected from sample')
+  const gl=water.renderer.getContext();const w=gl.drawingBufferWidth,h=gl.drawingBufferHeight
+  const read=()=>{const pixels=new Uint8Array(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels);return pixels}
+  water.clear();time+=17;water.render(time,image.width/image.height);const before=read();let lit=0;for(let i=0;i<before.length;i+=4)if(before[i]+before[i+1]+before[i+2]>50)lit++;log((lit>1000?'PASS':'FAIL')+': sample camera video has '+lit+' visible pixels')
+  water.disturb(tips.map(point=>({from:point,to:point,strength:.65})))
+  for(let i=0;i<12;i++){time+=17;water.render(time,image.width/image.height)}
+  const after=read();let changed=0;for(let i=0;i<before.length;i+=4)if(Math.abs(after[i]-before[i])+Math.abs(after[i+1]-before[i+1])+Math.abs(after[i+2]-before[i+2])>8)changed++
+  log((changed>100?'PASS':'FAIL')+': fingertip waves refracted '+changed+' camera pixels')
+  const touches=tips.map(point=>({from:point,to:{x:point.x+.08,y:point.y+.03},strength:.4}))
+  water.disturb(touches);time+=17;water.render(time,image.width/image.height);log('PASS: ten simultaneous moving wake segments rendered')
+  worker.terminate()
+ }
+}
+worker.postMessage({type:'init',base:location.origin+'/'})
+}catch(error){log('FAIL: '+error.stack)}
+</script></body></html>

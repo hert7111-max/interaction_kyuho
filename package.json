@@ -1,13 +1,16 @@
 {
-  "name": "interaction_kyuho",
+  "name": "colatec-lan-party",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "test": "node scripts/check-interactions.mjs",
+    "dev": "node server/index.mjs --dev",
+    "test": "node --test scripts/water.test.mjs",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "node server/index.mjs",
+    "start": "node server/index.mjs",
+    "predev": "node scripts/prepare-mediapipe.mjs",
+    "prebuild": "node scripts/prepare-mediapipe.mjs"
   },
   "devDependencies": {
     "typescript": "~7.0.2",
@@ -15,6 +18,8 @@
     "@types/three": "^0.187.0"
   },
   "dependencies": {
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "ws": "^8.22.1",
+    "@mediapipe/tasks-vision": "1.2.3"
   }
 }
