@@ -67,7 +67,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const requestedPort=Number(process.env.PORT||5173)
   try{
     const service=await createPartyServer({port:requestedPort,dev:process.argv.includes('--dev')})
-    console.log(`\n  Snow · 손끝으로 부르는 겨울\n  이 컴퓨터: ${service.url}\n${service.lan.map(url=>`  같은 네트워크: ${url}`).join('\n')}\n  카메라는 localhost 또는 HTTPS에서 사용할 수 있어요. 상단 메뉴에서 Snow와 WaterTouch 아카이브를 전환할 수 있어요.\n`)
+    console.log(`\n  파파괴 · 인터랙션 아카이브\n  이 컴퓨터: ${service.url}\n${service.lan.map(url=>`  같은 네트워크: ${url}`).join('\n')}\n  카메라는 localhost 또는 HTTPS에서 사용할 수 있어요. 상단 메뉴에서 파파괴, Snow, WaterTouch를 전환할 수 있어요.\n`)
     for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await service.close();process.exit(0)})
   }catch(error){console.error(error.code==='EADDRINUSE'?`포트 ${requestedPort}이 사용 중입니다. PORT=5174 npm start로 다른 포트를 사용할 수 있어요.`:error);process.exit(1)}
 }

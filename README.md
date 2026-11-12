@@ -1,36 +1,37 @@
-# Snow · Example 08
+# 파파괴
 
-카메라 화면에 떠다니는 구름을 검지로 찌르면 눈이 내립니다. 눈은 HumanSeg 사람 마스크의 경계와 충돌하고, 마찰로 완만한 곳에 쌓입니다. 가파른 곳에서는 미끄러지고, 몸이 이동해 지지면이 없어지면 중력으로 떨어집니다. 눈이 내리는 동안 입을 벌리면 입 주변 영상에 김이 서리고, 검지로 김을 지우며 그림을 그릴 수 있습니다. 남은 김은 천천히 증발합니다.
+카메라 영상 위로 픽셀 인간 캐릭터가 기어오릅니다. 양손의 검지를 뻗어 캐릭터를 가리키면 손끝에서 무지개 레이저가 발사됩니다. 캐릭터는 감전되어 떨고 연기를 내다가 중력으로 화면 바닥에 떨어지며, 바닥에 닿을 때 짧은 픽셀 피 효과와 함께 사라집니다. 레이저를 발사하는 동안 실제 얼굴의 양쪽 눈 전체가 빛납니다.
 
-상단 메뉴에서 **Snow**와 **WaterTouch · ARCHIVE**를 전환할 수 있습니다. WaterTouch의 렌더러·손 추적·UI 코드는 유지했습니다.
+메뉴 외에 제목·설명·안내 문구를 표시하지 않습니다. 시작과 조작은 아이콘 버튼을 사용하며 접근성 이름을 제공합니다. 오류가 있을 때만 필요한 메시지를 표시합니다.
 
 ```sh
 npm install
 npm run dev
 ```
 
-`http://localhost:5173`에서 ‘카메라 시작하기’를 눌러 권한을 허용하세요. HTTPS 또는 localhost가 필요하며, 영상은 브라우저 안에서만 처리합니다. 밝은 곳에서 얼굴·손·상반신을 보여주세요. 구름은 양손의 검지 끝으로 건드릴 수 있습니다.
+`http://localhost:5173`을 열고 카메라 아이콘을 누른 뒤 권한을 허용하세요. 카메라는 HTTPS 또는 localhost에서 동작하며 영상은 브라우저 안에서만 처리됩니다. 재생 아이콘은 카메라 없는 마우스·터치 체험입니다. 화면을 누른 채 원하는 캐릭터를 조준합니다.
 
-‘카메라 없이 먼저 체험하기’에서는 구름을 클릭/터치하고, ‘꾹 눌러 입김 불기’를 누른 뒤 화면을 드래그해 김을 지울 수 있습니다. 이 모드의 윤곽은 체험용 도형이며 실제 사람 인식 결과가 아닙니다.
+## 보관된 예제
 
-## 인터랙션
+- 기본 화면과 `/?example=papa`: 파파괴
+- `/?example=snow`: Snow — 기존 코드 유지, 설명은 [docs/snow.md](docs/snow.md)
+- `/?example=watertouch`: WaterTouch — 기존 코드 유지, 설명은 [docs/watertouch.md](docs/watertouch.md)
+- `/?example=7`: 콜라텍
 
-- 구름에 검지가 닿으면 약 6초간 눈이 내립니다. 다시 닿으면 시간을 연장합니다.
-- 눈의 양과 바람 방향·세기를 조절할 수 있습니다. ‘윤곽 보기’는 실제 사람 마스크를 반투명하게 표시합니다.
-- 얼굴의 입술 랜드마크와 `jawOpen`을 함께 사용해 입 벌림을 인식합니다. 눈이 내릴 때만 새로운 입김이 생성됩니다.
-- 입김은 원본 카메라 영상을 흐리게 합성한 응결 영역입니다. 검지의 연속 이동 경로를 따라 부드럽게 지워집니다. 지운 선은 잠시 재응결을 억제하며, 남은 김도 지수 감쇠로 증발합니다.
-- 카메라 끄기 또는 메뉴 전환 시 트랙과 워커를 종료합니다. 화면을 벗어나면 추적을 멈추고 오래된 마스크와 손 위치를 지웁니다.
+상단 메뉴에서 파파괴·Snow·WaterTouch를 전환할 수 있습니다. 이동할 때 카메라 트랙과 인식 워커를 종료합니다.
 
 ## 구현
 
-- `src/main.ts`, `src/experiment-menu.css`: 예제 선택과 상단 아카이브 메뉴. `/?example=snow`, `/?example=watertouch`, 이전 콜라텍 `/?example=7`.
-- `src/snow.ts`: 카메라 생명주기·검지 추적·입 벌림 인식·설정 UI.
-- `public/snow-tracker.js`: MediaPipe Hand Landmarker(양손), Image Segmenter(Selfie/HumanSeg), Face Landmarker. 별도 워커, 각 모델의 GPU 실패 시 CPU 대체. 손 추적 최대 20Hz, 사람·얼굴 추적은 그 절반으로 실행합니다.
-- `src/snow-physics.ts`: 사람 마스크의 부호 있는 거리장과 표면 법선, 120Hz 적분, 중력·공기저항·바람, 충돌 반발과 Coulomb 정지/운동 마찰, 쌓인 눈끼리의 지지 관계. 마스크가 움직이면 받침이 사라진 적층도 떨어집니다. 카메라 화면의 **2D 물리 근사**이며, 영상에서 실제 3D 몸의 깊이나 재질을 측정하는 방식은 아닙니다.
-- `src/snow-scene.ts`: 부유하는 구름·눈송이·사람 윤곽 표시·입김 마스크와 영상 블러 합성. 눈은 최대 1,800개이며 오래된 눈은 천천히 녹습니다.
-- `scripts/prepare-mediapipe.mjs`: 고정 버전 `@mediapipe/tasks-vision@1.2.3` SDK와 WASM, Google의 Hand Landmarker v1·Face Landmarker v1·Selfie Segmenter v1 모델을 준비합니다. 최초 준비에는 인터넷이 필요합니다. 실행 시 모델은 사이트 자체에서 불러옵니다.
+- `src/papa.ts`: 카메라 생명주기·두 손의 검지 조준·눈 좌표 변환·아이콘 조작
+- `public/papa-tracker.js`: MediaPipe Hand Landmarker와 Face Landmarker. 별도 워커에서 최대 2손과 1얼굴을 인식하며 GPU 실패 시 CPU로 대체합니다. 얼굴의 눈 테두리는 공식 `FACE_LANDMARKS_LEFT_EYE`, `FACE_LANDMARKS_RIGHT_EYE` 연결에서 추출합니다.
+- `src/papa-game.ts`: 손가락 관절의 3D 펴짐 판정, 손끝/손가락 방향의 조준과 가까운 대상 보정, 등반 → 감전 → 낙하 → 충돌 → 소멸 상태 전환. 120Hz 적분·중력·회전된 캐릭터의 바닥 충돌, 연기·스파크·픽셀 혈흔 수명 관리. 실제 사람을 식별하거나 레이저 대상으로 삼지 않으며 화면에 합성한 게임 캐릭터만 충돌 판정합니다.
+- `src/papa-sprites.ts`: 피부색·헤어스타일·성별 표현·의상이 다른 성인 체형의 캐릭터 14종. 프레임별 팔·무릎·그립이 바뀌는 픽셀 등반 애니메이션. 외부 이미지 다운로드 없이 Canvas로 생성합니다.
+- `src/papa-renderer.ts`: 빨주노초파남보 7가닥 레이저·손끝 발광·감전 아크·만화 X-ray·연기·바닥의 픽셀 피 효과. 양 눈의 테두리를 따라 흰빛과 무지개 광륜을 합성하고 추적 위치를 부드럽게 보간합니다. 얼굴을 놓치면 오래된 눈 효과를 지웁니다.
+- `src/main.ts`, `src/experiment-menu.css`: 새 예제 및 아카이브 메뉴
 
-Google Fonts를 사용할 수 없으면 시스템 글꼴로 표시됩니다. 최신 Chrome 또는 Safari를 권장합니다.
+신체·충돌은 게임용 2D 물리 근사입니다. 실제 화면 하단을 바닥으로 사용하며, 캐릭터와 효과 수에 상한을 두었습니다. 프레임마다 화면 전체를 번쩍이는 효과는 사용하지 않습니다.
+
+기존 고정 버전 `@mediapipe/tasks-vision@1.2.3`, Hand/Face Landmarker v1 모델을 재사용합니다. `scripts/prepare-mediapipe.mjs`가 개발·빌드 전에 SDK·WASM·모델을 준비하며 배포물에 포함합니다.
 
 ## 검사
 
@@ -39,10 +40,6 @@ npm test
 npm run build
 ```
 
-자동 검사 11개는 눈의 충돌·다층 적층·지지 소실·경사면 미끄러짐·빠른 입자의 관통 방지, HumanSeg 거리장과 거울 좌표, 입김 생성·연속 경로 지우기·증발, 입 벌림의 히스테리시스와 기존 WaterTouch 좌표 변환을 확인합니다.
+총 18개 자동 검사는 캐릭터 다양성·상향 등반·조준 대상 선택·검지 펴짐·양손 동시 발사·감전 재진입 차단·연기/스파크·중력 낙하·바닥 충돌 1회 처리·픽셀 피 발생·자연 소멸·입력 소실 시 발사 중단·개체 수 제한과 기존 Snow/WaterTouch 동작을 확인합니다. 브라우저에서는 아카이브 메뉴 전환, 텍스트 없는 게임 화면, 픽셀 캐릭터 렌더링과 카메라 시작 상태를 확인했습니다. 실제 사용자 손·얼굴 추적 품질은 조명과 가림의 영향을 받습니다.
 
-개발 서버의 `/scripts/snow-browser-qa.html`은 Google 공식 손/얼굴 샘플을 입력해 실제 3종 모델 로딩·양손·얼굴·사람 마스크와 마스크 표면의 눈 적층·입김 합성을 확인할 수 있는 수동 검사 화면입니다. 입 벌림 단계는 검출된 입 위치에 합성한 열린 입 신호를 사용하므로, 실제 사용자의 입 벌림 정확도를 대신하지 않습니다. 실제 카메라의 검지·몸·얼굴 인식 상태와 눈의 적층 카운트는 실행 중인 UI에서도 확인했습니다.
-
-WaterTouch 설명은 [docs/watertouch.md](docs/watertouch.md), 기존 인형뽑기는 [docs/toy-club.md](docs/toy-club.md)에 보관했습니다.
-
-참고: [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js), [Image Segmenter](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter/web_js), [Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/web_js).
+참고: [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js), [Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/web_js).
