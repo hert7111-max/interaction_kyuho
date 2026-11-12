@@ -1,38 +1,33 @@
 import './papa.css'
 import { PapaGame, RAINBOW, isPointing } from './papa-game'
-import type { Aim,Vec,Landmark } from './papa-game'
+import type { Aim,Vec } from './papa-game'
 import { PapaRenderer } from './papa-renderer'
+import { PapaTracking } from './papa-tracking'
+import type { Tracking } from './papa-tracking'
 import { cameraToSurface,smoothPoint } from './water-math'
 const symbols:Record<string,string>={camera:'<rect x="3" y="6" width="18" height="14" rx="3"/><path d="m8 6 2-3h4l2 3"/><circle cx="12" cy="13" r="4"/>',off:'<path d="m3 3 18 18M9 6l1-3h4l2 3h2a3 3 0 0 1 3 3v8M6 6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h12M9 10a4 4 0 0 0 5 5"/>',play:'<path d="m8 4 12 8-12 8V4Z"/>',reset:'<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>'}
 const icon=(name:string)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${symbols[name]}</svg>`
-document.querySelector<HTMLDivElement>('#app')!.innerHTML=`<main class="papa-app"><video id="papa-video" autoplay playsinline muted aria-hidden="true"></video><div class="papa-shade" aria-hidden="true"></div><canvas id="papa-canvas" aria-label="손끝 레이저로 기어오르는 픽셀 캐릭터를 떨어뜨리는 카메라 게임"></canvas><button id="papa-start" class="papa-start" aria-label="카메라 시작">${icon('camera')}</button><div class="papa-palette" id="papa-palette" aria-hidden="true">${RAINBOW.map(color=>`<i style="color:${color}"></i>`).join('')}</div><div class="papa-controls" role="group" aria-label="게임 조작"><button id="papa-camera" aria-label="카메라 시작" aria-pressed="false">${icon('camera')}</button><button id="papa-demo" aria-label="마우스로 체험" aria-pressed="false">${icon('play')}</button><button id="papa-reset" aria-label="다시 시작">${icon('reset')}</button><button id="papa-fullscreen" aria-label="전체 화면">${icon('expand')}</button></div><div class="papa-error" id="papa-error" role="alert"></div></main>`
+document.querySelector<HTMLDivElement>('#app')!.innerHTML=`<main class="papa-app"><video id="papa-video" autoplay playsinline muted aria-hidden="true"></video><div class="papa-shade" aria-hidden="true"></div><canvas id="papa-canvas" aria-label="손끝 레이저로 기어오르는 8등신 레트로 인간 캐릭터를 떨어뜨리는 카메라 게임"></canvas><button id="papa-start" class="papa-start" aria-label="카메라 시작">${icon('camera')}</button><div class="papa-palette" id="papa-palette" aria-hidden="true">${RAINBOW.map(color=>`<i style="color:${color}"></i>`).join('')}</div><div class="papa-controls" role="group" aria-label="게임 조작"><button id="papa-camera" aria-label="카메라 시작" aria-pressed="false">${icon('camera')}</button><button id="papa-demo" aria-label="마우스로 체험" aria-pressed="false">${icon('play')}</button><button id="papa-reset" aria-label="다시 시작">${icon('reset')}</button><button id="papa-fullscreen" aria-label="전체 화면">${icon('expand')}</button></div><div class="papa-error" id="papa-error" role="alert"></div></main>`
 const $=<T extends HTMLElement>(s:string)=>document.querySelector<T>(s)!
 const video=$<HTMLVideoElement>('#papa-video'),canvas=$<HTMLCanvasElement>('#papa-canvas'),start=$<HTMLButtonElement>('#papa-start'),camera=$<HTMLButtonElement>('#papa-camera'),demoButton=$<HTMLButtonElement>('#papa-demo')
 let game=new PapaGame(innerWidth/innerHeight*900)
 const renderer=new PapaRenderer(canvas)
-let stream:MediaStream|null=null,worker:Worker|null=null,active=false,loading=false,ready=false,busy=false,disposed=false,demo=false
-let generation=0,lastCapture=0,lastVideoTime=-1,lastHandAt=0,lastFaceAt=0,lastTrackingTime=0,lastTime=0,animation=0,watchdog=0,initTimeout=0
+let stream:MediaStream|null=null,tracker:PapaTracking|null=null,active=false,loading=false,ready=false,busy=false,disposed=false,demo=false
+let generation=0,lastCapture=0,lastVideoTime=-1,lastHandAt=0,lastFaceAt=0,lastTrackingTime=0,lastTime=0,animation=0,watchdog=0,lastPresent=0
 let aims:Aim[]=[],pointer:Vec|null=null
 const previous=new Map<string,{tip:Vec;direction:Vec}>()
 function resetTracking(){aims=[];previous.clear();renderer.eyes=[];renderer.glow=0;game.beams=[];lastHandAt=lastFaceAt=lastTrackingTime=0}
 function cameraButton(){camera.innerHTML=icon(active?'off':'camera');camera.setAttribute('aria-label',active?'카메라 끄기':'카메라 시작');camera.setAttribute('aria-pressed',String(active))}
-function stopCamera(){generation++;active=ready=busy=false;stream?.getTracks().forEach(track=>track.stop());stream=null;video.srcObject=null;video.classList.remove('on');worker?.terminate();worker=null;clearTimeout(watchdog);clearTimeout(initTimeout);resetTracking();cameraButton()}
+function stopCamera(){generation++;active=ready=busy=false;stream?.getTracks().forEach(track=>track.stop());stream=null;video.srcObject=null;video.classList.remove('on');tracker?.close();tracker=null;clearTimeout(watchdog);resetTracking();cameraButton()}
 function failure(message:string){stopCamera();start.hidden=false;$('#papa-error').textContent=message}
-async function loadTracker(){return new Promise<void>((resolve,reject)=>{
-  worker=new Worker(new URL(`${import.meta.env.BASE_URL}papa-tracker.js`,location.href))
-  initTimeout=window.setTimeout(()=>reject(new Error('인식 모델을 불러오지 못했어요. 다시 시도해주세요.')),65000)
-  worker.onerror=()=>{clearTimeout(initTimeout);if(loading)reject(new Error('인식 엔진을 시작하지 못했어요. 최신 Chrome 또는 Safari에서 다시 시도해주세요.'));else failure('인식이 중단됐어요. 카메라 버튼으로 다시 시작해주세요.')}
-  worker.onmessage=({data})=>{
-    if(data.type==='ready'){clearTimeout(initTimeout);ready=true;resolve()}
-    else if(data.type==='error'){console.error('파파괴:',data.message);clearTimeout(initTimeout);if(loading)reject(new Error('손과 얼굴 인식을 준비하지 못했어요. 다시 시도해주세요.'));else failure('인식이 중단됐어요. 카메라 버튼으로 다시 시작해주세요.')}
-    else if(data.type==='tracking'){
-      busy=false;clearTimeout(watchdog)
-      if(data.generation!==generation||!active)return
-      receiveTracking(data)
-    }
-  }
-  worker.postMessage({type:'init',base:new URL(import.meta.env.BASE_URL,location.href).href})
-})}
+async function loadTracker(){
+  const next=new PapaTracking();tracker=next
+  await next.init(new URL(import.meta.env.BASE_URL,location.href).href)
+  if(disposed||tracker!==next){next.close();throw new Error('Cancelled')}
+  next.onresult=data=>{busy=false;clearTimeout(watchdog);if(data.generation===generation&&active)receiveTracking(data)}
+  next.onerror=()=>failure('인식이 중단됐어요. 카메라 버튼으로 다시 시작해주세요.')
+  ready=true
+}
 async function startCamera(){
   if(loading)return
   loading=true;start.disabled=camera.disabled=demoButton.disabled=true;start.classList.add('loading');start.hidden=false;$('#papa-error').textContent=''
@@ -43,7 +38,7 @@ async function startCamera(){
     if(disposed){next.getTracks().forEach(track=>track.stop());return}
     stream=next;video.srcObject=stream;await video.play();video.classList.add('on');await loadTracker()
     if(disposed)return
-    active=true;lastVideoTime=-1;start.hidden=true;cameraButton()
+    active=true;lastVideoTime=-1;start.hidden=true;cameraButton();if(document.hidden){stream?.getVideoTracks().forEach(track=>track.enabled=false);video.pause()}
     stream.getVideoTracks()[0]?.addEventListener('ended',()=>{if(active)failure('카메라 연결이 끊겼어요.')})
   }catch(error){
     const name=error instanceof Error?error.name:''
@@ -51,7 +46,6 @@ async function startCamera(){
   }finally{loading=false;start.disabled=camera.disabled=demoButton.disabled=false;start.classList.remove('loading')}
 }
 function toWorld(point:Vec):Vec{const uv=cameraToSurface(point,video.videoWidth/video.videoHeight,innerWidth/innerHeight,true);return{x:uv.x*game.width,y:(1-uv.y)*900}}
-type Tracking={landmarks:Landmark[][];handedness:{categoryName:string}[][];eyes:Landmark[][]|null;timestamp:number}
 function receiveTracking(data:Tracking){
   const dt=lastTrackingTime?Math.min(.12,(data.timestamp-lastTrackingTime)/1000):.05;lastTrackingTime=data.timestamp;lastHandAt=performance.now()
   const seen=new Set<string>()
@@ -70,16 +64,16 @@ function receiveTracking(data:Tracking){
   if(data.eyes!==null){lastFaceAt=performance.now();renderer.eyes=data.eyes.map(eye=>eye.map(toWorld))}
 }
 async function capture(now:number){
-  if(!active||!ready||busy||document.hidden||video.readyState<2||now-lastCapture<40||lastVideoTime===video.currentTime)return
-  busy=true;lastCapture=now;lastVideoTime=video.currentTime;const token=generation
-  try{
-    const bitmap=await createImageBitmap(video,{resizeWidth:640,resizeHeight:Math.round(640*video.videoHeight/video.videoWidth)})
-    if(token!==generation||!worker){bitmap.close();busy=false;return}
-    worker.postMessage({type:'frame',bitmap,timestamp:now,generation:token},[bitmap]);clearTimeout(watchdog);watchdog=window.setTimeout(()=>{if(active)failure('인식이 멈췄어요. 카메라를 다시 켜주세요.')},12000)
-  }catch{busy=false;if(active)failure('카메라 영상을 읽지 못했어요.')}
+  if(!active||!ready||busy||!tracker||document.hidden||video.readyState<2||now-lastCapture<tracker.budget.interval||lastVideoTime===video.currentTime)return
+  busy=true;lastCapture=now;lastVideoTime=video.currentTime;const token=generation,current=tracker
+  clearTimeout(watchdog);watchdog=window.setTimeout(()=>{if(active)failure('인식이 멈췄어요. 카메라를 다시 켜주세요.')},12000)
+  try{await current.frame(video,now,token,aims.some(aim=>aim.pointing))}
+  catch{if(token===generation){busy=false;if(active)failure('카메라 영상을 읽지 못했어요. 외부 브라우저에서 다시 시도해주세요.')}}
 }
 function frame(now:number){
-  if(disposed)return
+  if(disposed||document.hidden)return
+  if(lastPresent&&now-lastPresent<1000/60-.75){animation=requestAnimationFrame(frame);return}
+  lastPresent=now-((now-lastPresent)%(1000/60))
   const dt=lastTime?Math.min(.06,(now-lastTime)/1000):1/60;lastTime=now
   if(!document.hidden){
     void capture(now)
@@ -102,8 +96,11 @@ canvas.addEventListener('pointerdown',event=>{if(!demo)return;canvas.setPointerC
 canvas.addEventListener('pointermove',event=>{if(demo&&canvas.hasPointerCapture(event.pointerId))pointer=point(event)})
 for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{pointer=null})
 addEventListener('blur',()=>{pointer=null;aims=[]})
-addEventListener('resize',()=>{game=new PapaGame(innerWidth/innerHeight*900);renderer.resize();resetTracking();pointer=null})
-document.addEventListener('visibilitychange',()=>{if(document.hidden){generation++;resetTracking();pointer=null;clearTimeout(watchdog)}else{lastVideoTime=-1;lastTime=0}})
+addEventListener('resize',()=>{const width=innerWidth/innerHeight*900,factor=width/game.width;for(const item of game.people)item.x*=factor;for(const item of game.particles)item.x*=factor;for(const item of game.stains)item.x*=factor;game.width=width;renderer.resize();resetTracking();pointer=null})
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){generation++;resetTracking();pointer=null;clearTimeout(watchdog);cancelAnimationFrame(animation);stream?.getVideoTracks().forEach(track=>track.enabled=false);video.pause()}
+  else{lastVideoTime=-1;lastTime=lastPresent=0;if(active){stream?.getVideoTracks().forEach(track=>track.enabled=true);void video.play().catch(()=>failure('카메라를 다시 시작해주세요.'))}cancelAnimationFrame(animation);animation=requestAnimationFrame(frame)}
+})
 function dispose(){disposed=true;cancelAnimationFrame(animation);stopCamera()}
 addEventListener('pagehide',dispose,{once:true});addEventListener('pageshow',event=>{if(event.persisted)location.reload()})
 if(import.meta.hot)import.meta.hot.dispose(dispose)

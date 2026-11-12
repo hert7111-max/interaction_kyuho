@@ -1,10 +1,11 @@
 import { createServer } from 'node:http'
-import { readFile,stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { resolve,dirname,extname,sep } from 'node:path'
 import { fileURLToPath,pathToFileURL } from 'node:url'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer,WebSocket } from 'ws'
 import { PartyRoom } from './room.mjs'
+import { readAsset } from './static-assets.mjs'
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..')
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.json':'application/json','.wasm':'application/wasm','.task':'application/octet-stream'}
 export function lanAddresses(port){return [...new Set(Object.values(networkInterfaces()).flat().filter(n=>n&&n.family==='IPv4'&&!n.internal&&!n.address.startsWith('169.254.')).map(n=>`http://${n.address}:${port}`))]}
@@ -26,11 +27,11 @@ export async function createPartyServer({port=5173,host='0.0.0.0',dev=false}={})
     if(!file.startsWith(resolve(root,'dist')+sep)&&file!==resolve(root,'dist')){reply(res,403,{error:'Forbidden'});return}
     try{
       if((await stat(file).catch(()=>null))?.isDirectory())file=resolve(file,'index.html')
-      let data=await readFile(file).catch(()=>null)
-      if(!data&&!extname(pathname)){file=resolve(root,'dist/index.html');data=await readFile(file).catch(()=>null)}
-      if(!data){reply(res,404,{error:'파일이 없어요. 먼저 npm run build를 실행해주세요.'});return}
-      res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream','Cache-Control':file.includes('/assets/')?'public, max-age=31536000, immutable':'no-cache','X-Content-Type-Options':'nosniff'})
-      res.end(req.method==='HEAD'?undefined:data)
+      let asset=await readAsset(file,req.headers['accept-encoding'])
+      if(!asset&&!extname(pathname)){file=resolve(root,'dist/index.html');asset=await readAsset(file,req.headers['accept-encoding'])}
+      if(!asset){reply(res,404,{error:'파일이 없어요. 먼저 npm run build를 실행해주세요.'});return}
+      res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream','Cache-Control':file.includes('/assets/')?'public, max-age=31536000, immutable':file.includes('/mediapipe/')?'public, max-age=86400':'no-cache','Vary':'Accept-Encoding',...(asset.encoding?{'Content-Encoding':asset.encoding}:{}),'X-Content-Type-Options':'nosniff'})
+      res.end(req.method==='HEAD'?undefined:asset.data)
     }catch{reply(res,500,{error:'Unable to serve application'})}
   })
   server.on('upgrade',(req,socket,head)=>{

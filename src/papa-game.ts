@@ -6,8 +6,12 @@ export type Beam={id:string;from:Vec;to:Vec;target:number|null;power:number}
 export type Particle=Vec&{vx:number;vy:number;age:number;life:number;size:number;kind:'smoke'|'spark'|'blood';color:string;rotation:number}
 export type Stain=Vec&{age:number;life:number;radius:number;seed:number}
 export const RAINBOW=['#ff3b5c','#ff8b32','#ffe449','#6dff8d','#43caff','#5b72ff','#c377ff'] as const
-export const PERSON_VARIANTS=14
+export const PERSON_VARIANTS=12
 export const FALL_GRAVITY=1150
+export const MAX_PEOPLE=30
+export const MAX_PARTICLES=850
+export const MIN_CLIMB_SPEED=30
+export const MAX_CLIMB_SPEED=65
 export function isPointing(hand:Landmark[],aspect=1){
   if(hand.length<21)return false
   const wrist=hand[0]!,mcp=hand[5]!,pip=hand[6]!,tip=hand[8]!
@@ -24,15 +28,15 @@ export function chooseTarget(aim:Aim,people:Person[]):Person|null{
     if(person.state!=='climbing'&&person.state!=='shocked')continue
     const dx=person.x-aim.tip.x,dy=person.y-aim.tip.y,distance=Math.hypot(dx,dy)
     const along=dx*aim.direction.x+dy*aim.direction.y,cross=Math.abs(dx*aim.direction.y-dy*aim.direction.x)
-    const radius=person.scale*34
-    const near=Math.hypot(dx/(person.scale*38),dy/(person.scale*58))<1.3
+    const radius=person.scale*30
+    const near=Math.hypot(dx/(person.scale*34),dy/(person.scale*72))<1.3
     const hit=near||(aim.foreshortened?distance<160:along>0&&cross<radius+Math.min(65,along*.1))
     const score=near?distance*.08:distance+cross*1.4
     if(hit&&score<best){selected=person;best=score}
   }
   return selected
 }
-export function floorExtent(person:Pick<Person,'rotation'|'scale'>){return (Math.abs(Math.cos(person.rotation))*45+Math.abs(Math.sin(person.rotation))*26)*person.scale}
+export function floorExtent(person:Pick<Person,'rotation'|'scale'>){const cosine=Math.cos(person.rotation);return (Math.abs(Math.sin(person.rotation))*34+(cosine>=0?cosine*60:-cosine*76))*person.scale}
 export class PapaGame{
   people:Person[]=[]
   particles:Particle[]=[]
@@ -47,20 +51,30 @@ export class PapaGame{
   private accumulator=0
   private random:()=>number
   private spawnIndex=0
+  private personPool:Person[]=[]
+  private particlePool:Particle[]=[]
+  private stainPool:Stain[]=[]
   impacts=0
   constructor(width:number,height=900,random:()=>number=Math.random){this.width=width;this.height=height;this.random=random;this.reset()}
-  reset(){this.people=[];this.particles=[];this.stains=[];this.beams=[];this.impacts=0;this.spawnTime=0;this.spawnIndex=0;this.accumulator=0;for(let i=0;i<Math.min(8,Math.max(4,Math.floor(this.width/210)));i++)this.spawn(this.height*.28+this.random()*this.height*.55)}
+  reset(){
+    this.personPool.push(...this.people);this.particlePool.push(...this.particles);this.stainPool.push(...this.stains)
+    this.people.length=this.particles.length=this.stains.length=this.beams.length=0
+    this.impacts=0;this.spawnTime=0;this.spawnIndex=0;this.accumulator=0
+    const count=Math.min(10,Math.max(6,Math.floor(this.width/210)+2))
+    for(let i=0;i<count;i++)this.spawn(this.height*.25+this.random()*this.height*.6)
+  }
   spawn(y=this.height+50){
-    if(this.people.length>=24)return
-    const scale=.78+this.random()*.44
-    const x=45+this.random()*Math.max(0,this.width-90)
-    this.people.push({id:++this.serial,x,y,vx:0,vy:0,rotation:0,spin:0,scale,variant:this.spawnIndex++%PERSON_VARIANTS,phase:this.random()*Math.PI*2,speed:24+this.random()*28,state:'climbing',stateTime:0,smokeTime:0,impact:false})
+    if(this.people.length>=MAX_PEOPLE)return
+    const scale=.82+this.random()*.28,x=40+this.random()*Math.max(0,this.width-80)
+    const person=this.personPool.pop()??{} as Person
+    Object.assign(person,{id:++this.serial,x,y,vx:0,vy:0,rotation:0,spin:0,scale,variant:this.spawnIndex++%PERSON_VARIANTS,phase:this.random()*Math.PI*2,speed:MIN_CLIMB_SPEED+this.random()*(MAX_CLIMB_SPEED-MIN_CLIMB_SPEED),state:'climbing',stateTime:0,smokeTime:0,impact:false})
+    this.people.push(person)
   }
   update(dt:number,aims:Aim[]){
-    if(!this.running){this.beams=[];return}
+    if(!this.running){this.beams.length=0;return}
     this.accumulator+=Math.min(dt,.08)
     // Aim is evaluated before integration, and each person receives only one state transition per hit.
-    this.beams=[]
+    this.beams.length=0
     for(const aim of aims){
       if(!aim.pointing)continue
       const target=chooseTarget(aim,this.people)
@@ -77,18 +91,21 @@ export class PapaGame{
     return true
   }
   private particle(kind:Particle['kind'],x:number,y:number,color:string){
-    if(this.particles.length>=850)return
+    if(this.particles.length>=MAX_PARTICLES)return
     const random=this.random,angle=random()*Math.PI*2,speed=kind==='smoke'?12+random()*28:kind==='blood'?65+random()*240:80+random()*200
-    this.particles.push({kind,x,y,vx:Math.cos(angle)*speed,vy:kind==='blood'?-80-random()*230:kind==='smoke'?-20-random()*40:Math.sin(angle)*speed,age:0,life:kind==='smoke'?.6+random()*1:kind==='blood'?.5+random()*.7:.12+random()*.3,size:kind==='smoke'?6+random()*10:kind==='blood'?1.7+random()*3.5:1+random()*2,color,rotation:random()*Math.PI*2})
+    const particle=this.particlePool.pop()??{} as Particle
+    Object.assign(particle,{kind,x,y,vx:Math.cos(angle)*speed,vy:kind==='blood'?-80-random()*230:kind==='smoke'?-20-random()*40:Math.sin(angle)*speed,age:0,life:kind==='smoke'?.6+random()*1:kind==='blood'?.5+random()*.7:.12+random()*.3,size:kind==='smoke'?6+random()*10:kind==='blood'?1.7+random()*3.5:1+random()*2,color,rotation:random()*Math.PI*2});this.particles.push(particle)
   }
   private step(dt:number){
     this.time+=dt;this.spawnTime-=dt
-    if(this.spawnTime<=0){this.spawn();this.spawnTime=.95+this.random()*.95}
+    if(this.spawnTime<=0){this.spawn();this.spawnTime=.9+this.random()*.5}
     for(const person of this.people){
-      person.stateTime+=dt;person.phase+=dt*(person.state==='climbing'?3.7:22)
+      person.stateTime+=dt;person.phase+=dt*(person.state==='climbing'?4.5:22)
       if(person.state==='climbing'){
-        person.y-=person.speed*dt;person.x+=Math.sin(person.phase*.48+person.id)*dt*5
-        person.x=Math.max(30,Math.min(this.width-30,person.x))
+        person.y-=person.speed*(1+.10*Math.sin(person.phase*2))*dt
+        person.x+=Math.sin(person.phase*.45+person.id)*dt*5
+        person.rotation=Math.sin(person.phase)*.025
+        person.x=Math.max(34,Math.min(this.width-34,person.x))
       }else if(person.state==='shocked'){
         person.rotation=Math.sin(person.stateTime*57)*.13;person.y-=dt*7
         if(person.stateTime>=.4){person.state='falling';person.stateTime=0;person.rotation=0}
@@ -100,7 +117,7 @@ export class PapaGame{
         const extent=floorExtent(person)
         if(person.y+extent>=this.height){
           person.y=this.height-extent;person.state='landed';person.stateTime=0;person.vx=0;person.vy=0
-          if(!person.impact){person.impact=true;this.impacts++;this.stains.push({x:person.x,y:this.height-1,age:0,life:1.7,radius:22+this.random()*22,seed:this.random()});for(let i=0;i<25;i++)this.particle('blood',person.x,this.height-3,i%3?'#c63357':'#ff5b72')}
+          if(!person.impact){person.impact=true;this.impacts++;const stain=this.stainPool.pop()??{} as Stain;Object.assign(stain,{x:person.x,y:this.height-1,age:0,life:1.7,radius:22+this.random()*22,seed:this.random()});this.stains.push(stain);for(let i=0;i<25;i++)this.particle('blood',person.x,this.height-3,i%3?'#c63357':'#ff5b72')}
         }
       }
       if(person.state==='shocked'||person.state==='falling'&&person.stateTime<.9){
@@ -115,8 +132,13 @@ export class PapaGame{
       else{p.vy+=150*dt;p.vx*=Math.exp(-dt*2)}
     }
     this.stains.forEach(s=>s.age+=dt)
-    this.stains=this.stains.filter(s=>s.age<s.life)
-    this.particles=this.particles.filter(p=>p.age<p.life)
-    this.people=this.people.filter(p=>p.y>-100&&(p.state!=='landed'||p.stateTime<.8))
+    // Compact in place; reuse expired objects instead of allocating three new arrays at 120Hz.
+    let write=0
+    for(let i=0;i<this.stains.length;i++){const item=this.stains[i]!;if(item.age<item.life)this.stains[write++]=item;else this.stainPool.push(item)}
+    this.stains.length=write;write=0
+    for(let i=0;i<this.particles.length;i++){const item=this.particles[i]!;if(item.age<item.life)this.particles[write++]=item;else this.particlePool.push(item)}
+    this.particles.length=write;write=0
+    for(let i=0;i<this.people.length;i++){const item=this.people[i]!;if(item.y>-100&&(item.state!=='landed'||item.stateTime<.8))this.people[write++]=item;else this.personPool.push(item)}
+    this.people.length=write
   }
 }

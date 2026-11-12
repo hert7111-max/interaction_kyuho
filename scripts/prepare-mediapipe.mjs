@@ -1,5 +1,6 @@
 import { mkdir, copyFile, access, rename, rm } from 'node:fs/promises'
-import { createWriteStream } from 'node:fs'
+import { createGzip } from 'node:zlib'
+import { createReadStream, createWriteStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 const destination = new URL('../public/mediapipe/', import.meta.url)
@@ -24,4 +25,5 @@ await Promise.all(models.map(async ([filename, path]) => {
     await rename(temporary, model)
   } catch (error) { await rm(temporary, { force: true }); throw error }
 }))
+await pipeline(createReadStream(new URL('wasm/vision_wasm_internal.wasm', destination)), createGzip({level:9}), createWriteStream(new URL('wasm/vision_wasm_internal.wasm.gz', destination)))
 console.log('MediaPipe SDK, WASM, hand, face and HumanSeg models ready locally.')

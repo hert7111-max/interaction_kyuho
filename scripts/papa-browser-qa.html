@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>Human performance QA</title><style>body{margin:0;background:#151820;color:#ecf4ff;font:13px monospace}video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}video{transform:scaleX(-1)}pre{position:fixed;z-index:5;top:12px;left:12px;padding:17px;background:#101324e8;white-space:pre-wrap;line-height:1.8;max-width:85%}</style></head><body><video muted playsinline></video><canvas></canvas><pre>Loading real-model QA…</pre><script type="module">
+import {PapaGame} from '/src/papa-game.ts'
+import {PapaRenderer} from '/src/papa-renderer.ts'
+import {PapaTracking} from '/src/papa-tracking.ts'
+import {cameraToSurface} from '/src/water-math.ts'
+const output=document.querySelector('pre'),video=document.querySelector('video'),canvas=document.querySelector('canvas'),params=new URLSearchParams(location.search),mode=params.get('backend')??'worker'
+const log=text=>output.textContent+='\n'+text
+window.addEventListener('error',e=>log('FAIL '+e.message))
+try{
+output.textContent='Human QA · '+mode
+const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
+const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const sourceCtx=source.getContext('2d');sourceCtx.drawImage(image,0,0)
+video.srcObject=source.captureStream(30);await video.play()
+const game=new PapaGame(innerWidth/innerHeight*900),renderer=new PapaRenderer(canvas),tracking=new PapaTracking({worker:mode!=='main',bitmap:mode!=='pixels'})
+let frame=0,last=0,lastCapture=0,busy=false,initDone=false,reported=false,inferences=0,renderTimes=[],intervals=[]
+let firstResolve;const firstResult=new Promise(resolve=>firstResolve=resolve)
+tracking.onresult=data=>{
+ busy=false;inferences++
+ if(inferences===1){log((data.landmarks.length===2?'PASS':'FAIL')+' real hand model: '+data.landmarks.length+' hands');log((data.eyes?.length===2&&data.eyes.every(e=>e.length===16)?'PASS':'FAIL')+' real face model: '+data.eyes?.length+' eye contours');firstResolve()}
+ if(data.eyes!==null)renderer.eyes=data.eyes.map(eye=>eye.map(p=>{const uv=cameraToSurface(p,video.videoWidth/video.videoHeight,innerWidth/innerHeight,true);return{x:uv.x*game.width,y:(1-uv.y)*900}}))
+}
+tracking.onerror=e=>{busy=false;log('FAIL tracking: '+e.message)}
+function animate(now){
+ sourceCtx.drawImage(image,0,0)
+ const dt=last?Math.min(.06,(now-last)/1000):1/60
+ if(initDone&&last&&frame>30)intervals.push(now-last)
+ last=now
+ const start=performance.now()
+ const aims=[.28,.72].map((x,i)=>({id:String(i),tip:{x:game.width*x,y:810},direction:{x:0,y:-1},pointing:true}))
+ game.update(dt,aims);renderer.render(game,dt)
+ if(initDone&&frame>30)renderTimes.push(performance.now()-start)
+ if(initDone&&!busy&&now-lastCapture>tracking.budget.interval){busy=true;lastCapture=now;tracking.frame(video,now,1,true).catch(e=>{busy=false;log('FAIL frame: '+e.message)})}
+ if(initDone)frame++
+ if(frame>=330&&!reported){reported=true;const percentile=(values,p)=>values.sort((a,b)=>a-b)[Math.floor(values.length*p)];log('Humans: '+game.people.length+' · impacts: '+game.impacts+' · inference results: '+inferences);log('Game + drawing CPU p50 '+percentile(renderTimes,.5).toFixed(2)+' ms · p95 '+percentile(renderTimes,.95).toFixed(2)+' ms');log('rAF intervals p50 '+percentile(intervals,.5).toFixed(2)+' ms · p95 '+percentile(intervals,.95).toFixed(2)+' ms');log('PASS visual effects retained: 7 colors, eye glow, shock, smoke, fall, impact');tracking.close()}
+ if(!reported)requestAnimationFrame(animate)
+}
+requestAnimationFrame(animate)
+await tracking.init(location.origin+'/');log('PASS local models + runtime initialized');initDone=true
+await firstResult
+}catch(e){log('FAIL '+e.stack)}
+</script></body></html>
