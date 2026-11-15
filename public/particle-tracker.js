@@ -16,7 +16,7 @@ self.onmessage=async({data})=>{
         if(frameCanvas.width!==data.width||frameCanvas.height!==data.height){frameCanvas.width=data.width;frameCanvas.height=data.height}
         frameContext.putImageData(new ImageData(data.pixels,data.width,data.height),0,0);source=frameCanvas
       }
-      const result=runtime.detect(source,data.timestamp,data.needEyes!==false,data.full)
+      const result=runtime.detect(source,data.timestamp)
       result.generation=data.generation;self.postMessage(result)
     }catch(error){self.postMessage({type:'error',message:String(error)})}
     finally{if(data.bitmap)data.bitmap.close()}

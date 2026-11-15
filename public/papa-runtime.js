@@ -2,7 +2,7 @@
 // Shared by the worker and DOM fallback; same models, input size and eye contours.
 self.PapaVisionRuntime=class {
   constructor(){this.hands=null;this.face=null;this.loops=[];this.index=0;this.binaryUrl=null;this.cancelled=false}
-  async init(base){
+  async init(base,options={}){
     this.cancelled=false
     const vision=await Vision.FilesetResolver.forVisionTasks(base+'mediapipe/wasm')
     const originalBinary=vision.wasmBinaryPath
@@ -24,7 +24,7 @@ self.PapaVisionRuntime=class {
     const initialize=async()=>{
       this.hands=await make(Vision.HandLandmarker,'hand_landmarker.task',{runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,minTrackingConfidence:.5})
       if(this.cancelled){this.hands.close();this.hands=null;throw new Error('Cancelled')}
-      this.face=await make(Vision.FaceLandmarker,'face_landmarker.task',{runningMode:'VIDEO',numFaces:1})
+      if(!options.handsOnly)this.face=await make(Vision.FaceLandmarker,'face_landmarker.task',{runningMode:'VIDEO',numFaces:1})
       if(this.cancelled){this.close();throw new Error('Cancelled')}
     }
     try{
@@ -34,6 +34,7 @@ self.PapaVisionRuntime=class {
         URL.revokeObjectURL(this.binaryUrl);this.binaryUrl=null;vision.wasmBinaryPath=originalBinary
         await initialize()
       }
+      if(options.handsOnly)return
       const loop=edges=>{
         const result=[edges[0].start],visited=new Set(result)
         while(result.length<edges.length){const current=result[result.length-1];let next;for(const e of edges){const other=e.start===current?e.end:e.end===current?e.start:undefined;if(other!==undefined&&!visited.has(other)){next=other;break}}if(next===undefined)break;result.push(next);visited.add(next)}

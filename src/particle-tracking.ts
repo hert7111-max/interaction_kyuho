@@ -1,6 +1,6 @@
 import type { Landmark } from './papa-game'
-export type Tracking={type:'tracking';landmarks:Landmark[][];handedness:{categoryName:string}[][];face:Landmark[]|null;timestamp:number;generation:number;duration:number}
-type Runtime={init(base:string):Promise<void>;detect(source:CanvasImageSource,timestamp:number,needEyes:boolean):Omit<Tracking,'generation'>;close():void}
+export type Tracking={type:'tracking';landmarks:Landmark[][];handedness:{categoryName:string}[][];timestamp:number;generation:number;duration:number}
+type Runtime={init(base:string):Promise<void>;detect(source:CanvasImageSource,timestamp:number):Omit<Tracking,'generation'>;close():void}
 declare global{interface Window{ParticleVisionRuntime:new()=>Runtime}}
 const scriptLoads=new Map<string,Promise<void>>()
 function script(url:string){let promise=scriptLoads.get(url);if(!promise){promise=new Promise<void>((resolve,reject)=>{const element=document.createElement('script');element.src=url;element.onload=()=>resolve();element.onerror=()=>reject(new Error('Model loader unavailable'));document.head.append(element)});scriptLoads.set(url,promise);promise.catch(()=>scriptLoads.delete(url))}return promise}
@@ -9,7 +9,7 @@ export class TrackingBudget{
   average=18
   sample(ms:number){if(!Number.isFinite(ms)||ms<0)return;this.average+=.15*(ms-this.average);this.interval=Math.max(45,Math.min(160,this.average*2.1))}
 }
-/** One frame in flight. Fallbacks retain both hands, the face outline and 640px model input. */
+/** One frame in flight. Fallbacks retain both hands and 640px model input. */
 export class ParticleTracking{
   private worker:Worker|null=null
   private runtime:Runtime|null=null
@@ -49,22 +49,22 @@ export class ParticleTracking{
     }
     this.worker.postMessage({type:'init',base})
   })}
-  async frame(video:HTMLVideoElement,timestamp:number,generation:number,needEyes:boolean){
+  async frame(video:HTMLVideoElement,timestamp:number,generation:number){
     if(this.disposed)return
     const token=this.epoch
     if(this.worker&&this.bitmapMode&&typeof createImageBitmap==='function'){
       try{
         const bitmap=await createImageBitmap(video,{resizeWidth:640,resizeHeight:Math.round(640*video.videoHeight/video.videoWidth)})
         if(this.disposed||token!==this.epoch){bitmap.close();return}
-        try{this.worker.postMessage({type:'frame',bitmap,timestamp,generation,needEyes},[bitmap]);return}catch(error){bitmap.close();throw error}
+        try{this.worker.postMessage({type:'frame',bitmap,timestamp,generation},[bitmap]);return}catch(error){bitmap.close();throw error}
       }catch{this.bitmapMode=false}
     }
     const width=640,height=Math.max(1,Math.round(width*video.videoHeight/video.videoWidth))
     if(this.captureCanvas.width!==width||this.captureCanvas.height!==height){this.captureCanvas.width=width;this.captureCanvas.height=height}
     this.context.drawImage(video,0,0,width,height)
-    if(this.worker){const image=this.context.getImageData(0,0,width,height);this.worker.postMessage({type:'frame',pixels:image.data,width,height,timestamp,generation,needEyes},[image.data.buffer]);return}
+    if(this.worker){const image=this.context.getImageData(0,0,width,height);this.worker.postMessage({type:'frame',pixels:image.data,width,height,timestamp,generation},[image.data.buffer]);return}
     if(!this.runtime)throw new Error('Tracker is not initialized')
-    const data=this.runtime.detect(this.captureCanvas,timestamp,needEyes);this.budget.sample(data.duration)
+    const data=this.runtime.detect(this.captureCanvas,timestamp);this.budget.sample(data.duration)
     this.onresult?.({...data,generation})
   }
   close(){if(this.disposed)return;this.disposed=true;this.epoch++;this.initCancel?.();this.initCancel=null;this.worker?.terminate();this.worker=null;this.runtime?.close();this.runtime=null;this.onresult=this.onerror=null;this.captureCanvas.width=this.captureCanvas.height=1}
