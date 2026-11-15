@@ -1,25 +1,28 @@
 import { createServer } from 'node:http'
+import { createServer as createSecureServer } from 'node:https'
 import { stat } from 'node:fs/promises'
 import { resolve,dirname,extname,sep } from 'node:path'
 import { fileURLToPath,pathToFileURL } from 'node:url'
-import { networkInterfaces } from 'node:os'
+import { localIPv4,loadDevelopmentTLS,protectedDevelopmentPath } from './dev-https.mjs'
 import { WebSocketServer,WebSocket } from 'ws'
 import { PartyRoom } from './room.mjs'
 import { readAsset } from './static-assets.mjs'
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..')
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.json':'application/json','.wasm':'application/wasm','.task':'application/octet-stream'}
-export function lanAddresses(port){return [...new Set(Object.values(networkInterfaces()).flat().filter(n=>n&&n.family==='IPv4'&&!n.internal&&!n.address.startsWith('169.254.')).map(n=>`http://${n.address}:${port}`))]}
+export function lanAddresses(port,protocol='http'){return localIPv4().map(address=>`${protocol}://${address}:${port}`)}
 export async function createPartyServer({port=5173,host='0.0.0.0',dev=false}={}){
-  const room=new PartyRoom(),clients=new Map(),server=createServer(),wss=new WebSocketServer({noServer:true,maxPayload:2048,perMessageDeflate:false})
+  const protocol=dev?'https':'http',tls=dev?await loadDevelopmentTLS(root):null
+  const room=new PartyRoom(),clients=new Map(),server=tls?createSecureServer(tls):createServer(),wss=new WebSocketServer({noServer:true,maxPayload:2048,perMessageDeflate:false})
   let vite=null,tickTimer,heartbeatTimer,boundPort=port,closed=false,sequence=0
-  if(dev){const{createServer:createVite}=await import('vite');vite=await createVite({root,appType:'spa',server:{middlewareMode:true,hmr:{server}}})}
+  if(dev){const{createServer:createVite}=await import('vite');vite=await createVite({root,appType:'spa',server:{host,https:tls??undefined,middlewareMode:true,hmr:{server,...(tls?{protocol:'wss'}:{})}}})}
   const send=(socket,message)=>{if(socket.readyState===WebSocket.OPEN&&socket.bufferedAmount<256000)socket.send(JSON.stringify(message))}
   const broadcast=message=>{for(const socket of clients.keys())send(socket,message)}
   const reply=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data))}
   server.on('request',async(req,res)=>{
     let pathname
     try{pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{reply(res,400,{error:'Bad URL'});return}
-    if(pathname==='/api/info'){reply(res,200,{title:'콜라텍',players:room.players.size,capacity:32,lan:lanAddresses(boundPort),port:boundPort});return}
+    if(protectedDevelopmentPath(pathname)){reply(res,403,{error:'Private development files are not served.'});return}
+    if(pathname==='/api/info'){reply(res,200,{title:'콜라텍',players:room.players.size,capacity:32,lan:lanAddresses(boundPort,protocol),port:boundPort});return}
     if(pathname==='/api/health'){reply(res,200,{ok:true,players:room.players.size});return}
     if(vite){vite.middlewares(req,res);return}
     if(req.method!=='GET'&&req.method!=='HEAD'){reply(res,405,{error:'Method not allowed'});return}
@@ -62,13 +65,13 @@ export async function createPartyServer({port=5173,host='0.0.0.0',dev=false}={})
   let previous=performance.now()
   tickTimer=setInterval(()=>{const now=performance.now();room.tick((now-previous)/1000);previous=now;if(clients.size)broadcast({type:'state',players:room.snapshot(),time:Date.now(),seq:sequence++})},50)
   heartbeatTimer=setInterval(()=>{for(const socket of wss.clients){if(!socket.isAlive()){socket.terminate();continue}socket.markPing();socket.ping()}},10000)
-  return {server,room,port:boundPort,url:`http://127.0.0.1:${boundPort}`,lan:lanAddresses(boundPort),async close(){if(closed)return;closed=true;clearInterval(tickTimer);clearInterval(heartbeatTimer);for(const socket of wss.clients)socket.terminate();await new Promise(r=>wss.close(r));if(vite)await vite.close();server.closeAllConnections();await new Promise(r=>server.close(r))}}
+  return {server,room,port:boundPort,url:`${protocol}://127.0.0.1:${boundPort}`,lan:lanAddresses(boundPort,protocol),async close(){if(closed)return;closed=true;clearInterval(tickTimer);clearInterval(heartbeatTimer);for(const socket of wss.clients)socket.terminate();await new Promise(r=>wss.close(r));if(vite)await vite.close();server.closeAllConnections();await new Promise(r=>server.close(r))}}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   const requestedPort=Number(process.env.PORT||5173)
   try{
-    const service=await createPartyServer({port:requestedPort,dev:process.argv.includes('--dev')})
-    console.log(`\n  파파괴 · 인터랙션 아카이브\n  이 컴퓨터: ${service.url}\n${service.lan.map(url=>`  같은 네트워크: ${url}`).join('\n')}\n  카메라는 localhost 또는 HTTPS에서 사용할 수 있어요. 상단 메뉴에서 파파괴, Snow, WaterTouch를 전환할 수 있어요.\n`)
+    const service=await createPartyServer({port:requestedPort,host:'0.0.0.0',dev:process.argv.includes('--dev')})
+    console.log(`\n  파파괴 · 인터랙션 아카이브\n  Local:   ${service.url}\n${service.lan.map(url=>`  Network: ${url}`).join('\n')}\n  카메라는 localhost 또는 HTTPS에서 사용할 수 있어요. 상단 메뉴에서 파파괴, Snow, WaterTouch를 전환할 수 있어요.\n`)
     for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await service.close();process.exit(0)})
-  }catch(error){console.error(error.code==='EADDRINUSE'?`포트 ${requestedPort}이 사용 중입니다. PORT=5174 npm start로 다른 포트를 사용할 수 있어요.`:error);process.exit(1)}
+  }catch(error){console.error(error.code==='EADDRINUSE'?`포트 ${requestedPort}이 사용 중입니다. PORT=5174 npm ${process.argv.includes('--dev')?'run dev':'start'}로 다른 포트를 사용할 수 있어요.`:error);process.exit(1)}
 }

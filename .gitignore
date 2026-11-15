@@ -25,3 +25,7 @@ dist-ssr
 
 # Recreated by scripts/prepare-mediapipe.mjs before dev/build
 /public/mediapipe/
+
+# Local HTTPS only: certificates, private CA, and downloaded development tools
+/.certs/
+/.dev-tools/
