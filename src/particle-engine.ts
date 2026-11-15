@@ -1,8 +1,7 @@
 export type Point={x:number;y:number}
 export type FaceFrame={x:number;y:number;width:number;height:number;contour:Point[]}
-export const PARTICLE_PALETTE=['#ff7410','#ff9a61','#f6a2e5','#ec89df','#c69cf1','#9586e8','#c5d76c'] as const
-const clamp=(value:number,min=0,max=1)=>Math.max(min,Math.min(max,value))
-export function smoothstep(a:number,b:number,x:number){const t=clamp((x-a)/(b-a));return t*t*(3-2*t)}
+export const GLITCH_PALETTE=['#f51b9c','#25dce8','#ffd326','#7843aa','#870c35','#619610'] as const
+const clamp=(v:number,a=0,b=1)=>Math.max(a,Math.min(b,v))
 export function insidePolygon(point:Point,polygon:Point[]){
   let inside=false
   for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
@@ -11,113 +10,86 @@ export function insidePolygon(point:Point,polygon:Point[]){
   }
   return inside
 }
-export function strokeTouchesFace(from:Point,to:Point,face:FaceFrame,aspect:number,radius=.045){
-  const cx=(face.x+face.width*.5)*aspect,cy=face.y+face.height*.5,dx=(to.x-from.x)*aspect,dy=to.y-from.y
-  const t=clamp(((cx-from.x*aspect)*dx+(cy-from.y)*dy)/(dx*dx+dy*dy||1))
-  const x=from.x*aspect+dx*t,y=from.y+dy*t
-  return Math.hypot((x-cx)/(face.width*aspect*.5+radius),(y-cy)/(face.height*.5+radius))<1.1
-}
 export function makeFaceFrame(contour:Point[]):FaceFrame|null{
-  if(contour.length<8||contour.some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return null
+  if(contour.length<8||contour.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null
   let left=Infinity,right=-Infinity,bottom=Infinity,top=-Infinity
   for(const p of contour){left=Math.min(left,p.x);right=Math.max(right,p.x);bottom=Math.min(bottom,p.y);top=Math.max(top,p.y)}
   if(right-left<.025||top-bottom<.04)return null
   return{x:left,y:bottom,width:right-left,height:top-bottom,contour}
 }
-function seed(index:number){const value=Math.sin(index*127.1+311.7)*43758.5453;return value-Math.floor(value)}
-/** Bounded, reusable typed arrays. Coordinates are screen UVs; physics offsets use screen-height units. */
-export class FaceParticles{
+/** Radius in screen-height units, estimated from the last finger bone, never the whole hand. */
+export function fingertipRadius(tip:Point,joint:Point,face:FaceFrame,aspect:number,screenHeight:number){
+  const bone=Math.hypot((tip.x-joint.x)*aspect,tip.y-joint.y)
+  return clamp(Number.isFinite(bone)?bone*.34:.01,Math.min(5/screenHeight,face.height*.025),Math.min(17/screenHeight,face.height*.047))
+}
+/** A face-local contact field. Nothing outside a fingertip's swept disc is ever activated. */
+export class FingertipDatamosh{
   readonly columns:number
   readonly rows:number
-  readonly count:number
-  readonly positions:Float32Array
-  readonly uv:Float32Array
-  readonly snapshotUV:Float32Array
-  readonly alpha:Float32Array
-  readonly random:Float32Array
-  readonly holes:Uint8Array
-  readonly velocity:Float32Array
-  readonly offset:Float32Array
-  readonly active:Uint8Array
+  readonly field:Uint8Array
+  readonly energy:Float32Array
+  private touched:Float32Array
   face:FaceFrame|null=null
-  time=0
-  start=-100
-  lastTouch=-100
-  burstSerial=0
-  direction:Point={x:1,y:0}
-  origin:Point={x:.5,y:.5}
+  faceVersion=0
+  version=0
   aspect=16/9
-  private release:Float32Array
-  private accumulator=0
-  private bursting=false
-  constructor(columns=64,rows=80){
-    this.columns=columns;this.rows=rows;this.count=columns*rows
-    this.positions=new Float32Array(this.count*3);this.uv=new Float32Array(this.count*2);this.snapshotUV=new Float32Array(this.count*2)
-    this.alpha=new Float32Array(this.count);this.random=new Float32Array(this.count);this.holes=new Uint8Array(this.count*4)
-    this.velocity=new Float32Array(this.count*2);this.offset=new Float32Array(this.count*2);this.active=new Uint8Array(this.count);this.release=new Float32Array(this.count)
-    for(let i=0;i<this.count;i++){this.uv[i*2]=(i%columns+.5)/columns;this.uv[i*2+1]=(Math.floor(i/columns)+.5)/rows;this.random[i]=seed(i+1)}
+  time=0
+  lastTouch=-100
+  activeCount=0
+  constructor(columns=128,rows=160){
+    this.columns=columns;this.rows=rows
+    this.field=new Uint8Array(columns*rows*4);this.energy=new Float32Array(columns*rows);this.touched=new Float32Array(columns*rows)
   }
-  get stage(){if(!this.bursting)return'idle';const age=this.time-this.start;return age<.4?'glitch':age<this.returnAt-this.start?'scattering':'returning'}
-  get returnAt(){return Math.min(this.start+4.1,Math.max(this.start+2.2,this.lastTouch+1.5))}
-  get glitch(){if(!this.bursting)return 0;const age=this.time-this.start;return smoothstep(0,.15,age)*(1-smoothstep(.7,2.4,age))}
-  setFace(face:FaceFrame){this.face=face}
-  push(from:Point,to:Point){
-    if(!this.face)return false
-    const dx=(to.x-from.x)*this.aspect,dy=to.y-from.y,distance=Math.hypot(dx,dy)
-    if(distance<.004||!strokeTouchesFace(from,to,this.face,this.aspect))return false
-    this.lastTouch=this.time
-    if(!this.bursting){
-      this.start=this.time;this.bursting=true;this.burstSerial++
-      this.direction={x:dx/distance,y:dy/distance};this.origin={x:to.x,y:to.y}
-      const face=this.face
-      for(let i=0;i<this.count;i++){
-        const u=this.uv[i*2]!,v=this.uv[i*2+1]!,x=face.x+u*face.width,y=face.y+v*face.height,s=this.random[i]!
-        this.active[i]=Number(insidePolygon({x,y},face.contour))
-        this.snapshotUV[i*2]=x;this.snapshotUV[i*2+1]=y
-        this.release[i]=.34+Math.hypot((x-to.x)*this.aspect,y-to.y)*.65+s*.24
-        const angle=seed(i+91)*Math.PI*2,force=.12+seed(i+7)*.5
-        this.velocity[i*2]=this.direction.x*(.2+s*.65)+Math.cos(angle)*force
-        this.velocity[i*2+1]=this.direction.y*(.2+s*.5)+Math.sin(angle)*force+.07
-      }
-      return true
+  get stage(){return this.activeCount===0?'idle':this.time-this.lastTouch<.16?'glitch':'recovering'}
+  setFace(face:FaceFrame){this.face=face;this.faceVersion++}
+  touch(point:Point,previous:Point|null,radius:number){
+    const face=this.face
+    if(!face||!Number.isFinite(point.x)||!Number.isFinite(point.y)||!(radius>0))return false
+    let from=previous??point
+    let dx=(point.x-from.x)*this.aspect,dy=point.y-from.y,length=Math.hypot(dx,dy)
+    // Reacquired hands and tracking jumps stamp only the current tip, without a connecting streak.
+    if(length>.13||!Number.isFinite(length)){from=point;dx=dy=length=0}
+    radius=Math.min(radius,face.height*.05)
+    const rx=radius/this.aspect,ry=radius
+    const x0=clamp(Math.floor((Math.min(from.x,point.x)-rx-face.x)/face.width*this.columns),0,this.columns-1)
+    const x1=clamp(Math.ceil((Math.max(from.x,point.x)+rx-face.x)/face.width*this.columns),0,this.columns-1)
+    const y0=clamp(Math.floor((Math.min(from.y,point.y)-ry-face.y)/face.height*this.rows),0,this.rows-1)
+    const y1=clamp(Math.ceil((Math.max(from.y,point.y)+ry-face.y)/face.height*this.rows),0,this.rows-1)
+    let changed=false
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+      const p={x:face.x+(x+.5)/this.columns*face.width,y:face.y+(y+.5)/this.rows*face.height}
+      const t=length?clamp(((p.x-from.x)*this.aspect*dx+(p.y-from.y)*dy)/(length*length)):0
+      const center={x:from.x+dx/this.aspect*t,y:from.y+dy*t}
+      const d=Math.hypot((p.x-center.x)*this.aspect,p.y-center.y)/radius
+      if(d>=1||!insidePolygon(center,face.contour)||!insidePolygon(p,face.contour))continue
+      const strength=1-clamp((d-.60)/.40),i=y*this.columns+x,k=i*4
+      if(this.energy[i]===0)this.activeCount++
+      this.energy[i]=Math.max(this.energy[i]!,strength);this.touched[i]=this.time
+      this.field[k]=Math.round(this.energy[i]!*255)
+      this.field[k+1]=Math.round((length?dx/length:0)*100+128)
+      this.field[k+2]=Math.round((length?dy/length:0)*100+128)
+      this.field[k+3]=255;changed=true
     }
-    // Additional moving fingers disturb the same particles; a hard deadline still guarantees recovery.
-    for(let i=0;i<this.count;i+=2){this.velocity[i*2]+=dx*.6;this.velocity[i*2+1]+=dy*.6}
-    return true
+    if(changed){this.lastTouch=this.time;this.version++}
+    return changed
+  }
+  sample(point:Point){
+    const face=this.face;if(!face||!insidePolygon(point,face.contour))return 0
+    const x=Math.floor((point.x-face.x)/face.width*this.columns),y=Math.floor((point.y-face.y)/face.height*this.rows)
+    return x<0||x>=this.columns||y<0||y>=this.rows?0:this.energy[y*this.columns+x]!
   }
   update(dt:number){
-    dt=Math.max(0,Math.min(.06,dt));this.time+=dt
-    if(!this.face)return
-    if(!this.bursting)return
-    this.accumulator+=dt
-    while(this.accumulator>=1/120){this.integrate(1/120);this.accumulator-=1/120}
-    const age=this.time-this.start,returnProgress=smoothstep(this.returnAt,this.returnAt+2.6,this.time)
-    const face=this.face
-    for(let i=0;i<this.count;i++){
-      const j=i*2,k=i*3,u=this.uv[j]!,v=this.uv[j+1]!,departure=smoothstep(this.release[i]!,this.release[i]!+.22,age)
-      const hole=this.active[i]?departure*(1-returnProgress):0
-      this.positions[k]=face.x+u*face.width+this.offset[j]!/this.aspect
-      this.positions[k+1]=face.y+v*face.height+this.offset[j+1]!
-      this.positions[k+2]=0
-      this.alpha[i]=this.active[i]?departure*(1-smoothstep(.86,1,returnProgress)):0
-      this.holes[i*4]=Math.round(hole*255);this.holes[i*4+3]=255
+    dt=clamp(dt,0,.06);this.time+=dt
+    if(!this.activeCount)return
+    let changed=false
+    for(let i=0;i<this.energy.length;i++){
+      if(this.energy[i]===0||this.time-this.touched[i]!<.12)continue
+      this.energy[i]=Math.max(0,this.energy[i]!-dt/1.12)
+      const value=Math.round(this.energy[i]!*255)
+      if(value!==this.field[i*4]){this.field[i*4]=value;changed=true}
+      if(this.energy[i]===0){this.field.fill(0,i*4,i*4+4);this.activeCount--}
     }
-    if(this.time>this.returnAt+2.9)this.reset()
+    if(changed)this.version++
   }
-  private integrate(dt:number){
-    const age=this.time-this.start,returning=this.time>=this.returnAt
-    for(let i=0;i<this.count;i++){
-      if(!this.active[i]||age<this.release[i]!)continue
-      const j=i*2,s=this.random[i]!
-      if(returning){
-        this.velocity[j]+=(-this.offset[j]!*22-this.velocity[j]!*8.5)*dt
-        this.velocity[j+1]+=(-this.offset[j+1]!*22-this.velocity[j+1]!*8.5)*dt
-      }else{
-        this.velocity[j]+=(Math.sin(this.time*1.2+s*11)*.12-this.velocity[j]!*.75)*dt
-        this.velocity[j+1]+=(Math.cos(this.time*1.1+s*9)*.1-this.velocity[j+1]!*.75)*dt
-      }
-      this.offset[j]+=this.velocity[j]!*dt;this.offset[j+1]+=this.velocity[j+1]!*dt
-    }
-  }
-  reset(){this.bursting=false;this.start=this.lastTouch=-100;this.offset.fill(0);this.velocity.fill(0);this.alpha.fill(0);this.holes.fill(0);this.accumulator=0}
+  reset(){this.field.fill(0);this.energy.fill(0);this.activeCount=0;this.lastTouch=-100;this.version++}
 }

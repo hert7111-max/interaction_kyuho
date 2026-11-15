@@ -1,40 +1,57 @@
-<!doctype html><html><head><meta charset="UTF-8"><title>particle QA</title><style>body{margin:0;background:#000;color:#fff;font:12px monospace}canvas{position:absolute;inset:0;width:100%;height:100%}video{position:absolute;width:1px;height:1px;opacity:0}pre{position:fixed;z-index:3;left:12px;top:12px;max-width:80%;padding:15px;background:#000c;white-space:pre-wrap;line-height:1.8}</style></head><body><video muted playsinline></video><canvas></canvas><pre>particle · real model + shader QA</pre><script type="module">
-import {FaceParticles,makeFaceFrame} from '/src/particle-engine.ts'
+<!doctype html><html><head><meta charset="UTF-8"><title>particle · local contact QA</title><style>body{margin:0;background:#000;color:#fff;font:12px monospace}canvas{position:absolute;inset:0;width:100%;height:100%}video{position:absolute;width:1px;height:1px;opacity:0}pre{position:fixed;z-index:3;left:12px;top:12px;max-width:80%;padding:15px;background:#000c;white-space:pre-wrap;line-height:1.8}</style></head><body><video muted playsinline></video><canvas></canvas><pre>particle · fingertip-only datamosh QA</pre><script type="module">
+import {FingertipDatamosh,makeFaceFrame} from '/src/particle-engine.ts'
 import {ParticleRenderer} from '/src/particle-renderer.ts'
 import {ParticleTracking} from '/src/particle-tracking.ts'
 import {cameraToSurface} from '/src/water-math.ts'
-const pre=document.querySelector('pre'),video=document.querySelector('video'),canvas=document.querySelector('canvas'),log=text=>pre.textContent+='\n'+text
-window.addEventListener('error',e=>log('FAIL '+e.message))
+const pre=document.querySelector('pre'),video=document.querySelector('video'),canvas=document.querySelector('canvas'),log=t=>pre.textContent+='\n'+t
+addEventListener('error',e=>log('FAIL '+e.message))
 try{
-const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
-const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const ctx=source.getContext('2d');ctx.drawImage(image,0,0);video.srcObject=source.captureStream(30);await video.play()
-const engine=new FaceParticles();engine.aspect=innerWidth/innerHeight
-const renderer=new ParticleRenderer(canvas,video,engine);renderer.ready=true
-const tracker=new ParticleTracking()
-let initialized=false,triggered=false,last=0,base=null,checkedGlitch=false,checkedScatter=false,checkedReturn=false,lastCapture=0,busy=false,renderTimes=[]
-const pixels=()=>{const gl=renderer.renderer.getContext(),data=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,data);return data}
-const colorCount=data=>{let color=0;for(let i=0;i<data.length;i+=4)if(Math.max(data[i],data[i+1],data[i+2])-Math.min(data[i],data[i+1],data[i+2])>12)color++;return color}
-tracker.onresult=data=>{
- busy=false
- if(data.face?.length){const contour=data.face.map(p=>cameraToSurface(p,video.videoWidth/video.videoHeight,innerWidth/innerHeight,true));engine.setFace(makeFaceFrame(contour))
- if(!triggered){log((data.landmarks.length===2?'PASS':'FAIL')+' hand model: '+data.landmarks.length+' hands');log((data.face.length>=30?'PASS':'FAIL')+' face model: '+data.face.length+' outline points');initialized=true}}
-}
-tracker.onerror=e=>log('FAIL model '+e.message)
-function animate(now){
- ctx.drawImage(image,0,0)
- const dt=last?Math.min(.05,(now-last)/1000):1/60;last=now
- const start=performance.now();engine.update(dt);renderer.render(video.videoWidth/video.videoHeight,dt);if(triggered)renderTimes.push(performance.now()-start)
- if(initialized&&!triggered&&engine.face){base=pixels();let lit=0;for(let i=0;i<base.length;i+=4)if(base[i]>15)lit++;log((lit>1000&&colorCount(base)===0?'PASS':'FAIL')+' high-contrast monochrome video');const face=engine.face,x=face.x+face.width*.5,y=face.y+face.height*.5;engine.push({x:x-.07,y},{x:x+.07,y:y+.015});triggered=true}
- if(triggered){
- const age=engine.time-engine.start
- if(!checkedGlitch&&age>.22&&age<.34){checkedGlitch=true;const current=pixels();let changed=0;for(let i=0;i<current.length;i+=16)if(Math.abs(current[i]-base[i])>15)changed++;log((changed>50?'PASS':'FAIL')+' temporal datamosh: '+changed+' changed samples')}
- if(!checkedScatter&&age>1.4&&engine.stage==='scattering'){checkedScatter=true;const colored=colorCount(pixels()),active=engine.alpha.reduce((sum,a)=>sum+(a>.5),0);log((colored>100&&active>1000?'PASS':'FAIL')+' dispersion: '+active+' face particles / '+colored+' colored pixels');if(new URLSearchParams(location.search).has('hold')){tracker.close();return}}
- if(checkedScatter&&!checkedReturn&&engine.stage==='idle'){checkedReturn=true;const colored=colorCount(pixels());log((colored===0&&engine.holes.every(v=>v===0)?'PASS':'FAIL')+' automatic reassembly to live monochrome face');renderTimes.sort((a,b)=>a-b);log('CPU update + draw p95 '+renderTimes[Math.floor(renderTimes.length*.95)].toFixed(2)+' ms');tracker.close();video.pause();video.srcObject.getTracks().forEach(track=>track.stop());return}
+ const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
+ const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const ctx=source.getContext('2d');ctx.drawImage(image,0,0)
+ video.srcObject=source.captureStream(30);await video.play()
+ const engine=new FingertipDatamosh();engine.aspect=innerWidth/innerHeight
+ const renderer=new ParticleRenderer(canvas,video,engine);renderer.ready=true
+ const mode=new URLSearchParams(location.search).get('backend'),tracker=new ParticleTracking({worker:mode!=='main',bitmap:mode!=='pixels'})
+ let initialized=false,triggered=false,last=0,base=null,checkedPatch=false,lastCapture=0,busy=false,start=0,times=[]
+ const read=()=>{const gl=renderer.renderer.getContext(),data=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,data);return{data,width:gl.drawingBufferWidth,height:gl.drawingBufferHeight}}
+ const colors=data=>{let n=0;for(let i=0;i<data.length;i+=4)if(Math.max(...data.subarray(i,i+3))-Math.min(...data.subarray(i,i+3))>10)n++;return n}
+ const finish=()=>{tracker.close();video.pause();video.srcObject.getTracks().forEach(t=>t.stop())}
+ tracker.onresult=data=>{
+   busy=false
+   if(data.face?.length&&!triggered){engine.setFace(makeFaceFrame(data.face.map(p=>cameraToSurface(p,video.videoWidth/video.videoHeight,engine.aspect,true))));log((data.landmarks.length===2?'PASS':'FAIL')+' actual model: '+data.landmarks.length+' hands / '+data.face.length+' face outline points');log((data.landmarks.reduce((n,h)=>n+[4,8,12,16,20].filter(i=>h[i]).length,0)===10?'PASS':'FAIL')+' ten independent fingertips');initialized=true}
  }
- if(initialized&&!busy&&now-lastCapture>tracker.budget.interval){busy=true;lastCapture=now;tracker.frame(video,now,1,true).catch(e=>{busy=false;log('FAIL capture '+e.message)})}
- requestAnimationFrame(animate)
-}
-requestAnimationFrame(animate)
-await tracker.init(location.origin+'/');log('PASS model runtime initialized');initialized=true
-}catch(error){log('FAIL '+error.stack)}
+ tracker.onerror=e=>log('FAIL model '+e.message)
+ function frame(now){
+   ctx.drawImage(image,0,0)
+   const dt=last?Math.min(.05,(now-last)/1000):1/60;last=now
+   const cpu=performance.now();engine.update(dt);renderer.render(video.videoWidth/video.videoHeight);if(triggered)times.push(performance.now()-cpu)
+   if(initialized&&engine.face&&!triggered){
+     base=read();const lit=base.data.filter((v,i)=>i%4===0&&v>20).length
+     log((lit>1000&&colors(base.data)===0?'PASS':'FAIL')+' soft monochrome camera shader')
+     const f=engine.face,x=f.x+f.width*.5,y=f.y+f.height*.53
+     engine.touch({x:x+.024,y},{x:x-.024,y},f.height*.035);triggered=true;start=engine.time
+   }
+   const age=engine.time-start
+   if(triggered&&!checkedPatch&&age>.17){
+     checkedPatch=true
+     const current=read(),colored=colors(current.data);let untouched=0,changed=0
+     for(let y=0;y<current.height;y+=5)for(let x=0;x<current.width;x+=5){
+       if(engine.sample({x:(x+.5)/current.width,y:(y+.5)/current.height})!==0)continue
+       untouched++;const i=(y*current.width+x)*4
+       if(Math.abs(current.data[i]-base.data[i])>2||Math.abs(current.data[i+1]-base.data[i+1])>2||Math.abs(current.data[i+2]-base.data[i+2])>2)changed++
+     }
+     log((colored>20&&colored<current.width*current.height*.02?'PASS':'FAIL')+' local color datamosh: '+colored+' pixels')
+     log((changed===0?'PASS':'FAIL')+' untouched area: '+changed+' changed / '+untouched+' samples')
+     if(new URLSearchParams(location.search).has('hold')){finish();return}
+   }
+   if(checkedPatch&&age>1.7&&engine.stage==='idle'){
+     log((colors(read().data)===0&&engine.field.every(v=>v===0)?'PASS':'FAIL')+' automatic exact recovery to monochrome original')
+     times.sort((a,b)=>a-b);log('CPU update + draw p95 '+times[Math.floor(times.length*.95)].toFixed(2)+' ms');finish();return
+   }
+   if(initialized&&!busy&&now-lastCapture>tracker.budget.interval){busy=true;lastCapture=now;tracker.frame(video,now,1,true).catch(e=>{busy=false;log('FAIL capture '+e.message)})}
+   requestAnimationFrame(frame)
+ }
+ requestAnimationFrame(frame)
+ await tracker.init(location.origin+'/');log('PASS tracking runtime initialized');initialized=true
+}catch(e){log('FAIL '+e.stack)}
 </script></body></html>
