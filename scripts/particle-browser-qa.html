@@ -1,67 +1,46 @@
-<!doctype html><html><head><meta charset="UTF-8"><title>particle · screen corruption QA</title><style>body{margin:0;background:#000;color:#fff;font:12px monospace}canvas{position:absolute;inset:0;width:100%;height:100%}video{position:absolute;width:1px;height:1px;opacity:0}pre{position:fixed;z-index:3;left:12px;top:12px;max-width:80%;padding:15px;background:#000c;white-space:pre-wrap;line-height:1.8}</style></head><body><video muted playsinline></video><canvas></canvas><pre>particle · full-screen colorful corruption QA</pre><script type="module">
-import {FingertipDatamosh,fingertipRadius} from '/src/particle-engine.ts'
+<!doctype html><html><head><meta charset="UTF-8"><title>particle · rubber QA</title><style>body{margin:0;background:#000;color:#fff;font:12px monospace}canvas{position:absolute;inset:0;width:100%;height:100%}video{position:absolute;width:1px;height:1px;opacity:0}pre{position:fixed;z-index:3;left:12px;top:12px;max-width:80%;padding:15px;background:#000c;white-space:pre-wrap;line-height:1.8}</style></head><body><video muted playsinline></video><canvas></canvas><pre>particle · pinch / stretch / slow recovery QA</pre><script type="module">
+import {RubberSurface,PinchInput} from '/src/particle-engine.ts'
 import {ParticleRenderer} from '/src/particle-renderer.ts'
 import {ParticleTracking} from '/src/particle-tracking.ts'
-import {cameraToSurface} from '/src/water-math.ts'
-const pre=document.querySelector('pre'),video=document.querySelector('video'),canvas=document.querySelector('canvas'),log=t=>pre.textContent+='\n'+t
+const log=t=>document.querySelector('pre').textContent+='\n'+t,video=document.querySelector('video'),canvas=document.querySelector('canvas')
 addEventListener('error',e=>log('FAIL '+e.message))
 try{
  const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
- const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const ctx=source.getContext('2d');ctx.drawImage(image,0,0)
- video.srcObject=source.captureStream(30);await video.play()
- const engine=new FingertipDatamosh();engine.aspect=innerWidth/innerHeight
+ const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const ctx=source.getContext('2d');ctx.drawImage(image,0,0);video.srcObject=source.captureStream(30);await video.play()
+ const engine=new RubberSurface(),pinches=new PinchInput(engine);engine.aspect=innerWidth/innerHeight
  const renderer=new ParticleRenderer(canvas,video,engine);renderer.ready=true
  const mode=new URLSearchParams(location.search).get('backend'),tracker=new ParticleTracking({worker:mode!=='main',bitmap:mode!=='pixels'})
- let initialized=false,triggered=false,last=0,base=null,checked=false,lastCapture=0,busy=false,start=0,times=[],tips=[]
- const map=p=>cameraToSurface(p,video.videoWidth/video.videoHeight,engine.aspect,true)
+ let ready=false,initialized=false,busy=false,lastCapture=0,last=0,start=0,base=null,checked=false,released=false,slow=false,initialPull=0
+ const origin={x:.47,y:.56},target={x:.69,y:.59}
+ function hand(point,gap=.01){const h=Array.from({length:21},()=>({...point}));h[0]={x:point.x,y:point.y-.12};h[9]={x:point.x,y:point.y+.04};h[5]={x:point.x-.07,y:point.y};h[17]={x:point.x+.07,y:point.y};h[4]={x:point.x-gap/2,y:point.y};h[8]={x:point.x+gap/2,y:point.y};return h}
  const read=()=>{const gl=renderer.renderer.getContext(),data=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,data);return{data,width:gl.drawingBufferWidth,height:gl.drawingBufferHeight}}
- const colors=data=>{let n=0;for(let i=0;i<data.length;i+=4)if(Math.max(data[i],data[i+1],data[i+2])-Math.min(data[i],data[i+1],data[i+2])>25)n++;return n}
  const finish=()=>{tracker.close();video.pause();video.srcObject.getTracks().forEach(t=>t.stop())}
- tracker.onresult=data=>{
-   busy=false
-   if(data.landmarks.length&&!triggered){
-     tips=[]
-     for(const hand of data.landmarks)for(const i of [4,8,12,16,20])tips.push({point:map(hand[i]),joint:map(hand[i-1])})
-     log((data.landmarks.length===2&&tips.length===10?'PASS':'FAIL')+' actual hand-only model: '+data.landmarks.length+' hands / '+tips.length+' tips');initialized=true
-   }
- }
- tracker.onerror=e=>log('FAIL model '+e.message)
+ tracker.onresult=data=>{busy=false;if(!ready){log((data.landmarks.length===2?'PASS':'FAIL')+' actual MediaPipe: '+data.landmarks.length+' hands');tracker.close();ready=true}}
+ tracker.onerror=e=>log('FAIL '+e.message)
  function frame(now){
-   ctx.drawImage(image,0,0)
-   const dt=last?Math.min(.05,(now-last)/1000):1/60;last=now
-   const cpu=performance.now();engine.update(dt);renderer.render(video.videoWidth/video.videoHeight);if(triggered)times.push(performance.now()-cpu)
-   if(initialized&&tips.length&&!triggered){
-     base=read();log((colors(base.data)===0?'PASS':'FAIL')+' resting monochrome camera')
-     for(const {point,joint} of tips)engine.touch(point,{x:point.x-.025,y:point.y},fingertipRadius(point,joint,engine.aspect,innerHeight))
-     engine.touch({x:.13,y:.55},{x:.08,y:.55},.07)
-     log(engine.sample({x:.1,y:.55})>.9?'PASS background contact without a face gate':'FAIL background contact')
-     triggered=true;start=engine.time
-   }
-   const age=engine.time-start
-   if(triggered&&!checked&&age>.23){
-     checked=true
-     const current=read(),colored=colors(current.data);let untouched=0,changed=0,core=0,coreChanged=0
-     for(let y=0;y<current.height;y+=7)for(let x=0;x<current.width;x+=7){
-       const point={x:(x+.5)/current.width,y:(y+.5)/current.height},energy=engine.sample(point),i=(y*current.width+x)*4
-       const delta=Math.max(Math.abs(current.data[i]-base.data[i]),Math.abs(current.data[i+1]-base.data[i+1]),Math.abs(current.data[i+2]-base.data[i+2]))
-       if(energy>.8){core++;if(delta>20)coreChanged++}
-       let halo=false;for(const dx of [-2,0,2])for(const dy of [-2,0,2])if(engine.sample({x:point.x+dx/engine.columns,y:point.y+dy/engine.rows})>0)halo=true
-       if(!halo){untouched++;if(delta>3)changed++}
-     }
-     log((colored>1000?'PASS':'FAIL')+' strong neon corruption: '+colored+' colored pixels')
-     log((coreChanged>core*.7?'PASS':'FAIL')+' destroyed core: '+coreChanged+' / '+core+' samples')
-     log((changed===0?'PASS':'FAIL')+' distant untouched pixels: '+changed+' changed / '+untouched+' samples')
-     log('Code glyph atlas: ERR / MEM / CRC + hexadecimal payloads; inspect visually')
+   ctx.drawImage(image,0,0);const dt=last?Math.min(.05,(now-last)/1000):1/60;last=now
+   if(ready&&!base){renderer.render(video.videoWidth/video.videoHeight);base=read();start=now;pinches.hand('left',hand(origin),now)}
+   const age=(now-start)/1000
+   if(base&&!released){const t=Math.min(1,age/1.1);pinches.hand('left',hand({x:origin.x+(target.x-origin.x)*t,y:origin.y+(target.y-origin.y)*t}),now)}
+   engine.update(dt);renderer.render(video.videoWidth/video.videoHeight)
+   if(base&&!checked&&age>1.6){
+     checked=true;const current=read();let changed=0,color=0
+     for(let i=0;i<current.data.length;i+=4){if(Math.abs(current.data[i]-base.data[i])>15)changed++;if(Math.max(current.data[i],current.data[i+1],current.data[i+2])-Math.min(current.data[i],current.data[i+1],current.data[i+2])>2)color++}
+     const picked=engine.sourceAt(target)
+     log((Math.hypot((picked.x-origin.x)*engine.aspect,picked.y-origin.y)<.02?'PASS':'FAIL')+' grabbed pixels follow pinch: '+JSON.stringify(picked))
+     log((changed>1000&&color===0?'PASS':'FAIL')+' smooth monochrome stretch: '+changed+' changed pixels, '+color+' colored pixels')
      if(new URLSearchParams(location.search).has('hold')){finish();return}
+     pinches.hand('left',hand(target,.2),now);released=true;initialPull=target.x-engine.sourceAt(target).x
+     log(engine.grips.size===0?'PASS opening fingers releases material':'FAIL pinch release')
    }
-   if(checked&&age>2.2&&engine.stage==='idle'){
-     log((colors(read().data)===0&&engine.field.every(v=>v===0)?'PASS':'FAIL')+' automatic recovery to monochrome original')
-     times.sort((a,b)=>a-b);log('CPU update + draw p95 '+times[Math.floor(times.length*.95)].toFixed(2)+' ms');finish();return
+   if(released&&!slow&&age>3.7){slow=true;log((target.x-engine.sourceAt(target).x>initialPull*.9?'PASS':'FAIL')+' retains over 90% stretch two seconds after release')}
+   if(released&&age>18.1&&engine.stage==='idle'){
+     const current=read();let changed=0;for(let i=0;i<current.data.length;i+=4)if(Math.abs(current.data[i]-base.data[i])>2)changed++
+     log(changed===0?'PASS exact return to original video after 16-second recovery':'FAIL recovery: '+changed+' pixels');finish();return
    }
-   if(initialized&&!busy&&now-lastCapture>tracker.budget.interval){busy=true;lastCapture=now;tracker.frame(video,now,1).catch(e=>{busy=false;log('FAIL capture '+e.message)})}
+   if(initialized&&!ready&&!busy&&now-lastCapture>tracker.budget.interval){busy=true;lastCapture=now;tracker.frame(video,now,1).catch(e=>log('FAIL '+e.message))}
    requestAnimationFrame(frame)
  }
- requestAnimationFrame(frame)
- await tracker.init(location.origin+'/');log('PASS hands-only runtime initialized');initialized=true
+ requestAnimationFrame(frame);await tracker.init(location.origin+'/');initialized=true;log('PASS hands-only runtime initialized')
 }catch(e){log('FAIL '+e.stack)}
 </script></body></html>
