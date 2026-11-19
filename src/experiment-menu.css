@@ -2,3 +2,5 @@
 @media(max-width:700px){.experiment-menu a{padding:8px 11px;gap:6px}.experiment-menu{width:max-content;max-width:calc(100% - 28px)}}
 
 @media(max-width:700px){.experiment-menu a{font-size:9px;padding:8px 9px;gap:5px}.experiment-menu svg{width:12px;height:12px}.experiment-menu{gap:2px}}
+
+.experiment-menu{max-width:calc(100% - 28px);overflow-x:auto;scrollbar-width:none}.experiment-menu::-webkit-scrollbar{display:none}.experiment-menu a{flex-shrink:0}

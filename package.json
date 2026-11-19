@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server/index.mjs --dev",
-    "test": "node --test scripts/water.test.mjs scripts/snow.test.mjs scripts/papa.test.mjs scripts/static-assets.test.mjs scripts/papa-budget.test.mjs scripts/dev-https.test.mjs scripts/particle.test.mjs",
+    "test": "node --test scripts/water.test.mjs scripts/snow.test.mjs scripts/papa.test.mjs scripts/static-assets.test.mjs scripts/papa-budget.test.mjs scripts/dev-https.test.mjs scripts/particle.test.mjs scripts/arcade.test.mjs",
     "build": "tsc && vite build && node scripts/compress-assets.mjs",
     "preview": "node server/index.mjs",
     "start": "node server/index.mjs",
