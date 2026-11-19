@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "node server/index.mjs --dev",
-    "test": "node --test scripts/water.test.mjs scripts/snow.test.mjs scripts/papa.test.mjs scripts/static-assets.test.mjs scripts/papa-budget.test.mjs scripts/dev-https.test.mjs scripts/particle.test.mjs scripts/arcade.test.mjs scripts/arcade-cord.test.mjs",
+    "test": "node --test scripts/water.test.mjs scripts/snow.test.mjs scripts/papa.test.mjs scripts/static-assets.test.mjs scripts/papa-budget.test.mjs scripts/dev-https.test.mjs scripts/particle.test.mjs scripts/arcade.test.mjs scripts/arcade-cord.test.mjs scripts/arcade-hand.test.mjs",
     "build": "tsc && vite build && node scripts/compress-assets.mjs",
     "preview": "node server/index.mjs",
     "start": "node server/index.mjs",
     "predev": "node scripts/setup-https.mjs && node scripts/prepare-mediapipe.mjs",
     "prebuild": "node scripts/prepare-mediapipe.mjs",
     "setup:https": "node scripts/setup-https.mjs",
-    "trust:https": "node scripts/setup-https.mjs --trust"
+    "trust:https": "node scripts/setup-https.mjs --trust",
+    "build:arcade-hand": "node scripts/build-arcade-hands.mjs"
   },
   "devDependencies": {
     "typescript": "~7.0.2",

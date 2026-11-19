@@ -106,7 +106,7 @@ export class ArcadeScene{
   }
   dispose(){
     this.disposed=true;const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>()
-    this.scene.traverse(object=>{const mesh=object as THREE.Mesh;if(mesh.geometry)geometries.add(mesh.geometry);if(mesh.material)for(const m of Array.isArray(mesh.material)?mesh.material:[mesh.material])materials.add(m)})
+    this.scene.traverse(object=>{const mesh=object as THREE.Mesh;if(mesh instanceof THREE.SkinnedMesh)mesh.skeleton.dispose();if(mesh.geometry)geometries.add(mesh.geometry);if(mesh.material)for(const m of Array.isArray(mesh.material)?mesh.material:[mesh.material])materials.add(m)})
     geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());const textures=new Set<THREE.Texture>(this.textures);for(const material of materials)for(const value of Object.values(material))if(value instanceof THREE.Texture)textures.add(value);textures.forEach(t=>t.dispose());this.monitorTexture.dispose();this.renderer.dispose()
   }
 }
