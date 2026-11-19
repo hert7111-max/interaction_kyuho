@@ -1,5 +1,5 @@
 import type { Landmark } from './papa-game'
-export type Tracking={type:'tracking';landmarks:Landmark[][];handedness:{categoryName:string}[][];eyes:Landmark[][]|null;timestamp:number;generation:number;duration:number}
+export type Tracking={type:'tracking';landmarks:Landmark[][];handedness:{categoryName:string}[][];eyes:Landmark[][]|null;faceOutline?:Landmark[]|null;timestamp:number;generation:number;duration:number}
 type Runtime={init(base:string):Promise<void>;detect(source:CanvasImageSource,timestamp:number,needEyes:boolean):Omit<Tracking,'generation'>;close():void}
 declare global{interface Window{PapaVisionRuntime:new()=>Runtime}}
 const scriptLoads=new Map<string,Promise<void>>()

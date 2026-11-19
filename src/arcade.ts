@@ -1,6 +1,6 @@
 import './arcade.css'
-import {ArcadeGame,fingerCurl,isFingerGun} from './arcade-game'
-import type {ArcadeHand} from './arcade-game'
+import {ArcadeGame,fingerCurl,isFingerGun,faceTarget} from './arcade-game'
+import type {ArcadeHand,FaceTarget} from './arcade-game'
 import {ArcadeMonitor} from './arcade-monitor'
 import {ArcadeScene} from './arcade-scene'
 import {PapaTracking} from './papa-tracking'
@@ -17,8 +17,9 @@ let scene:ArcadeScene|null=null
 try{scene=new ArcadeScene(canvas,monitor)}catch{$('#arcade-error').textContent='3D 화면을 준비하지 못했어요. 최신 Chrome 또는 Safari에서 다시 열어주세요.';start.disabled=camera.disabled=true}
 let stream:MediaStream|null=null,tracker:PapaTracking|null=null,active=false,loading=false,busy=false,disposed=false,generation=0,lastCapture=0,lastVideoTime=-1,lastHandAt=0,lastFaceAt=0,lastTrackingTime=0,lastTime=0,lastPresent=0,lastMonitor=0,animation=0,watchdog=0
 let hands:ArcadeHand[]=[]
+let face:FaceTarget|null=null
 const previous=new Map<string,{tip:Point;direction:Point;curls:number[];neutral:Point}>()
-function resetTracking(){hands=[];previous.clear();monitor.eyes=[];monitor.eyeGlow=0;lastHandAt=lastFaceAt=lastTrackingTime=0}
+function resetTracking(){hands=[];face=null;previous.clear();monitor.eyes=[];monitor.eyeGlow=0;lastHandAt=lastFaceAt=lastTrackingTime=0}
 function updateButton(){camera.innerHTML=icon(active?'off':'camera');camera.setAttribute('aria-label',active?'카메라 끄기':'카메라 시작');camera.setAttribute('aria-pressed',String(active))}
 function stopCamera(){generation++;active=busy=false;stream?.getTracks().forEach(track=>track.stop());stream=null;video.srcObject=null;tracker?.close();tracker=null;clearTimeout(watchdog);resetTracking();updateButton()}
 function fail(text:string){stopCamera();start.hidden=false;$('#arcade-error').textContent=text}
@@ -62,12 +63,13 @@ function receive(data:Tracking){
   }
   hands=nextHands;for(const id of previous.keys())if(!seen.has(id))previous.delete(id)
   if(data.eyes!==null){lastFaceAt=now;monitor.eyes=data.eyes.map(eye=>eye.map(screenPoint))}
+  if(data.faceOutline!==undefined&&data.faceOutline!==null)face=faceTarget(data.faceOutline.map(screenPoint))
 }
 async function capture(now:number){
   if(!active||!tracker||busy||document.hidden||video.readyState<2||lastVideoTime===video.currentTime||now-lastCapture<tracker.budget.interval)return
   busy=true;lastCapture=now;lastVideoTime=video.currentTime;const current=tracker,token=generation
   clearTimeout(watchdog);watchdog=window.setTimeout(()=>{if(active)fail('인식이 멈췄어요. 카메라를 다시 켜주세요.')},12000)
-  try{await current.frame(video,now,token,hands.some(h=>h.firing))}catch{if(token===generation){busy=false;if(active)fail('카메라 영상을 읽지 못했어요. 외부 브라우저에서 다시 시도해주세요.')}}
+  try{await current.frame(video,now,token,true)}catch{if(token===generation){busy=false;if(active)fail('카메라 영상을 읽지 못했어요. 외부 브라우저에서 다시 시도해주세요.')}}
 }
 function frame(now:number){
   if(disposed||document.hidden)return
@@ -75,7 +77,8 @@ function frame(now:number){
   lastPresent=now-((now-lastPresent)%(1000/60));const dt=lastTime?Math.min(.06,(now-lastTime)/1000):1/60;lastTime=now
   void capture(now)
   if(active&&now-lastHandAt>350){hands=[];previous.clear()}if(active&&now-lastFaceAt>500)monitor.eyes=[]
-  game.update(dt,hands)
+  const fresh=active&&lastFaceAt>0&&now-lastFaceAt<850
+  game.update(dt,hands,fresh?face:null,fresh)
   if(!lastMonitor||now-lastMonitor>=1000/30-1){monitor.render(game,video,active,dt+(lastMonitor?Math.max(0,(now-lastMonitor)/1000-dt):0));lastMonitor=now}
   scene?.render(game,dt)
   if(!start.hidden&&scene){const center=scene.screenCenter();start.style.left=`${center.x}px`;start.style.top=`${center.y}px`}

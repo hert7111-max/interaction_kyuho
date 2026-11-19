@@ -45,15 +45,15 @@ export class ArcadeController{
   }
   update(game:ArcadeGame,dt:number){
     const alpha=1-Math.exp(-dt*19)
-    this.group.rotation.z=Math.sin(game.time*.65)*.005+game.recoil*.007;this.group.rotation.x=-.37-game.recoil*.025;this.group.position.y=-.47+Math.sin(game.time*.9)*.002-game.recoil*.008
+    this.group.rotation.z=Math.sin(game.time*.65)*.005+Math.sin(game.time*37)*game.recoil*.018;this.group.rotation.x=-.37-game.recoil*.065;this.group.position.y=-.47+Math.sin(game.time*.9)*.002-game.recoil*.024
     for(let i=0;i<2;i++){
-      const rig=this.rigs[i]!,id=i===0?'Left':'Right',hand:ArcadeHand|undefined=game.hands.find(h=>h.id===id)??game.hands.filter(h=>h.id!=='Left'&&h.id!=='Right')[i],tx=hand?.thumb.x??0,ty=hand?.thumb.y??0,fire=hand?.firing?Math.pow(Math.max(0,Math.sin(game.time*75)),2):0
+      const rig=this.rigs[i]!,id=i===0?'Left':'Right',hand:ArcadeHand|undefined=game.hands.find(h=>h.id===id)??game.hands.filter(h=>h.id!=='Left'&&h.id!=='Right')[i],firing=hand?.firing&&!game.dead,fire=firing?.5+.5*Math.sin(game.time*Math.PI*24+i*.7):0,tx=(hand?.thumb.x??0)+(firing?Math.sin(game.time*18+i)*.32:0),ty=(hand?.thumb.y??0)+(firing?Math.cos(game.time*22+i)*.28:0)
       rig.thumbX+=(tx-rig.thumbX)*alpha;rig.thumbY+=(ty-rig.thumbY)*alpha
-      rig.stick.rotation.x=rig.thumbY*.16;rig.stick.rotation.y=-rig.thumbX*.16
+      rig.stick.rotation.x=rig.thumbY*.25;rig.stick.rotation.y=-rig.thumbX*.25
       for(let j=0;j<4;j++)rig.curl[j]+=((hand?.curls[j]??.55)-rig.curl[j]!)*alpha
       rig.hand.pose(rig.thumbX,rig.thumbY,fire,rig.curl)
-      rig.trigger.position.y=.405-fire*.018
-      for(let j=0;j<rig.buttons.length;j++)rig.buttons[j]!.position.z=.17-(j===1?fire*.012:0)
+      rig.trigger.position.y=.405-fire*.040
+      for(let j=0;j<rig.buttons.length;j++)rig.buttons[j]!.position.z=.17-(j===1?fire*.027:0)
     }
   }
 }

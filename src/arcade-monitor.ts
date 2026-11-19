@@ -1,5 +1,6 @@
 import {ArcadeGame,JET_COLORS,JET_VARIANTS} from './arcade-game'
 import type {Jet} from './arcade-game'
+import {pixelText,pixelWidth} from './arcade-pixel'
 export type ScreenPoint={x:number;y:number}
 function polygon(ctx:CanvasRenderingContext2D,points:number[][],fill:string){ctx.fillStyle=fill;ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x!,y!):ctx.moveTo(x!,y!));ctx.closePath();ctx.fill()}
 function jetSprite(variant:number){
@@ -21,6 +22,9 @@ export class ArcadeMonitor{
   private ctx:CanvasRenderingContext2D
   private sprites=Array.from({length:JET_VARIANTS},(_,i)=>jetSprite(i))
   private glow=glowSprite()
+  private faceImage=document.createElement('canvas')
+  private explosionSeen=0
+  private shards:{sx:number;sy:number;x:number;y:number;vx:number;vy:number;size:number}[]=[]
   eyes:ScreenPoint[][]=[]
   eyeGlow=0
   version=0
@@ -39,10 +43,19 @@ export class ArcadeMonitor{
       for(let y=(game.time*17)%32;y<h;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
       ctx.fillStyle='#15333b';for(let i=0;i<32;i++)ctx.fillRect((i*127)%640,(i*89)%480,2,2)
     }
+    if(game.explosionSerial!==this.explosionSeen){
+      this.explosionSeen=game.explosionSerial;this.shards.length=0
+      if(game.dead&&game.lastFace){const f=game.lastFace;this.faceImage.width=w;this.faceImage.height=h;this.faceImage.getContext('2d')!.drawImage(this.canvas,0,0)
+        const step=Math.max(10,Math.ceil(Math.max(f.right-f.left,f.bottom-f.top)/9))
+        for(let y=Math.max(0,f.top);y<Math.min(h,f.bottom);y+=step)for(let x=Math.max(0,f.left);x<Math.min(w,f.right);x+=step){const dx=(x-f.x)/(f.right-f.left),dy=(y-f.y)/(f.bottom-f.top);if(dx*dx+dy*dy>.29)continue;this.shards.push({sx:x,sy:y,x,y,vx:dx*460+Math.sin(x*2+y)*45,vy:dy*360-80,size:step})}
+      }
+    }
+    if(game.dead&&game.face){ctx.save();const f=game.face;ctx.beginPath();f.outline.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.clip();ctx.fillStyle='#07121b';ctx.fillRect(f.left,f.top,f.right-f.left,f.bottom-f.top);ctx.fillStyle='#223348';for(let y=f.top;y<f.bottom;y+=10)ctx.fillRect(f.left,y,f.right-f.left,2);ctx.restore()}
+    if(game.dead&&game.deathAge<1.7){const t=game.deathAge;ctx.globalAlpha=Math.max(0,1-t/1.7);for(const s of this.shards){ctx.drawImage(this.faceImage,s.sx,s.sy,s.size,s.size,Math.round(s.x+s.vx*t),Math.round(s.y+s.vy*t+160*t*t),s.size,s.size)}ctx.globalAlpha=1}
     this.eyeGlow+=(Number(game.firing)-this.eyeGlow)*(1-Math.exp(-dt*24))
     if(this.eyeGlow>.01){
       const strength=this.eyeGlow*(.6+.4*Math.pow(Math.sin(game.time*38),2));ctx.save();ctx.globalCompositeOperation='lighter'
-      for(const eye of this.eyes){
+      for(const eye of game.dead?[]:this.eyes){
         if(!eye.length)continue
         let x=0,y=0,left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity
         for(const p of eye){x+=p.x;y+=p.y;left=Math.min(left,p.x);right=Math.max(right,p.x);top=Math.min(top,p.y);bottom=Math.max(bottom,p.y)}x/=eye.length;y/=eye.length
@@ -55,11 +68,20 @@ export class ArcadeMonitor{
     for(const jet of game.jets)this.drawJet(jet,game.time)
     ctx.save();ctx.globalCompositeOperation='lighter'
     for(const b of game.bullets){ctx.strokeStyle='#f5d79c';ctx.lineWidth=3;ctx.beginPath();const speed=Math.hypot(b.vx,b.vy);ctx.moveTo(b.x-b.vx/speed*15,b.y-b.vy/speed*15);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.fillStyle='#fffcea';ctx.fillRect(b.x-1,b.y-2,2,4)}
+    for(const b of game.enemyBullets){const x=Math.round(b.x),y=Math.round(b.y),n=Math.hypot(b.vx,b.vy)||1;ctx.strokeStyle='#ff465b';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x-b.vx/n*11,y-b.vy/n*11);ctx.lineTo(x,y);ctx.stroke();ctx.fillStyle='#ffe9a2';ctx.fillRect(x-2,y-2,4,4)}
     for(const m of game.muzzles){const s=1-m.age/.075;ctx.globalAlpha=s;ctx.drawImage(this.glow,m.x-20*s,m.y-20*s,40*s,40*s);polygon(ctx,[[m.x,m.y-14*s],[m.x+4*s,m.y-3*s],[m.x+12*s,m.y],[m.x+3*s,m.y+4*s],[m.x,m.y+10*s],[m.x-3*s,m.y+3*s],[m.x-11*s,m.y],[m.x-3*s,m.y-4*s]],'#fff3ad')}
     ctx.restore()
     for(const p of game.debris){ctx.globalAlpha=(1-p.age/p.life)*(p.kind==='smoke'?.65:1);ctx.fillStyle=p.color;const size=Math.max(1,Math.round(p.size));ctx.fillRect(Math.round(p.x-size/2),Math.round(p.y-size/2),size,size)}ctx.globalAlpha=1
-    ctx.font='bold 13px monospace';ctx.textBaseline='top';ctx.fillStyle='#041310';ctx.fillText(`SCORE ${String(game.score).padStart(6,'0')}`,19,18);ctx.fillStyle='#d4eee1';ctx.fillText(`SCORE ${String(game.score).padStart(6,'0')}`,18,17)
-    ctx.font='12px monospace';ctx.fillStyle='#cee4daaa';ctx.fillText('AV-1',584,18)
+    if(game.hitFlash>0){ctx.globalAlpha=game.hitFlash*.2;ctx.fillStyle='#ff3c64';ctx.fillRect(0,0,w,h);ctx.globalAlpha=1}
+    pixelText(ctx,`SCORE ${String(game.score).padStart(6,'0')}`,18,17,'#d4eee1')
+    const combo=`${String(game.combo).padStart(2,'0')} COMBO`;pixelText(ctx,combo,w-20-pixelWidth(combo),17,game.combo?'#ffe48a':'#87a5a4')
+    if(ready){
+      const f=game.face,bw=144,x=Math.round(Math.max(12,Math.min(w-bw-12,(f?.x??320)-bw/2))),y=Math.round(Math.max(48,Math.min(h-54,(f?.top??108)-43))),color=game.charging?'#87ffd6':game.hp<30?'#ff5976':'#c0f5a5'
+      ctx.fillStyle='#04131cdd';ctx.fillRect(x-6,y-5,bw+12,39);pixelText(ctx,`HP ${String(Math.ceil(game.hp)).padStart(3,'0')}`,x,y,color)
+      if(game.charging)pixelText(ctx,'+',x+bw-12,y,'#87ffd6')
+      for(let i=0;i<20;i++){ctx.fillStyle=i/20<game.hp/100?color:'#30434a';ctx.fillRect(x+i*7,y+21,5,7)}
+      if(game.dead){const label=game.charging?'RECHARGE':'KO',center=game.face??game.lastFace;pixelText(ctx,label,Math.max(12,Math.min(w-pixelWidth(label,3)-12,(center?.x??320)-pixelWidth(label,3)/2)),Math.max(95,Math.min(350,center?.y??240)),color,3)}
+    }
   }
   private drawJet(jet:Jet,time:number){const ctx=this.ctx;ctx.save();ctx.translate(Math.round(jet.x),Math.round(jet.y));ctx.rotate(jet.angle);ctx.scale(jet.scale,jet.scale);if(jet.state==='falling')ctx.globalAlpha=Math.max(0,1-jet.age*.25);ctx.drawImage(this.sprites[jet.variant]!,-48,-55);if(jet.state==='flying'){ctx.fillStyle=Math.floor(time*18+jet.id)%2?'#ffd88a':'#ef8d55';ctx.fillRect(-2,39,4,6+Math.sin(time*29)*3)}ctx.restore()}
 }

@@ -45,10 +45,10 @@ self.PapaVisionRuntime=class {
   }
   detect(source,timestamp,needEyes=true,full=false){
     const start=performance.now(),hands=this.hands.detectForVideo(source,timestamp)
-    let eyes=null
+    let eyes=null,faceOutline=null
     const cadence=needEyes?2:4
-    if(this.index++%cadence===0||full){const face=this.face.detectForVideo(source,timestamp).faceLandmarks[0];eyes=face?this.loops.map(loop=>loop.map(i=>face[i])):[]}
-    return {type:'tracking',landmarks:hands.landmarks,handedness:hands.handedness,eyes,timestamp,duration:performance.now()-start}
+    if(this.index++%cadence===0||full){const face=this.face.detectForVideo(source,timestamp).faceLandmarks[0];eyes=face?this.loops.map(loop=>loop.map(i=>face[i])):[];faceOutline=face?[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109].map(i=>face[i]):[]}
+    return {type:'tracking',landmarks:hands.landmarks,handedness:hands.handedness,eyes,faceOutline,timestamp,duration:performance.now()-start}
   }
   close(){this.cancelled=true;if(this.hands)this.hands.close();if(this.face)this.face.close();this.hands=this.face=null;if(this.binaryUrl)URL.revokeObjectURL(this.binaryUrl);this.binaryUrl=null}
 }
