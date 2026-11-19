@@ -3,6 +3,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {ArcadeController} from './arcade-controller'
 import {ArcadeCord} from './arcade-cord'
 import {detailedRoom} from './arcade-room'
+import {arcadeView,CONTROLLER_Y} from './arcade-view'
 import type {ArcadeGame} from './arcade-game'
 import type {ArcadeMonitor} from './arcade-monitor'
 const crtVertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`
@@ -39,7 +40,6 @@ export class ArcadeScene{
   private cordStart=new THREE.Vector3()
   private cordEnd=new THREE.Vector3()
   private screenLight=new THREE.PointLight(0x83d0c3,13,7,2)
-  private target=new THREE.Vector3(0,1.28,-.4)
   private width=0
   private height=0
   private disposed=false
@@ -47,12 +47,12 @@ export class ArcadeScene{
     this.monitor=monitor
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'low-power'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true
     this.renderer.setClearColor('#10171d');this.scene.fog=new THREE.Fog('#171d27',11,25)
-    this.scene.add(new THREE.HemisphereLight(0xb5c4de,0x47304b,.75));const key=new THREE.DirectionalLight(0xffddbd,3.0);key.position.set(-4,7,5);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-8,right:8,top:8,bottom:-6,near:.5,far:28});key.shadow.bias=-.0007;key.shadow.normalBias=.025;this.scene.add(key)
-    const blue=new THREE.DirectionalLight(0x5789ba,.7);blue.position.set(5,2,-1);this.scene.add(blue)
+    this.scene.add(new THREE.HemisphereLight(0x9eaabd,0x543523,.48));const key=new THREE.DirectionalLight(0xffce9d,2.1);key.position.set(4,5,4);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-8,right:8,top:8,bottom:-6,near:.5,far:28});key.shadow.bias=-.0007;key.shadow.normalBias=.025;this.scene.add(key)
+    const blue=new THREE.DirectionalLight(0x658dcf,1.4);blue.position.set(-5,3,-1);this.scene.add(blue)
     this.screenLight.position.set(0,2.0,1.1);this.scene.add(this.screenLight)
     this.scene.add(detailedRoom())
     const caseGroup=new THREE.Group();caseGroup.position.set(0,1.93,-.55);this.scene.add(caseGroup)
-    const casing=this.mat('#92988e'),bezel=this.mat('#b5b9a6'),dark=this.mat('#1a2428')
+    const casing=this.mat('#272f2b'),bezel=this.mat('#213b2b'),dark=this.mat('#0d1917')
     caseGroup.add(shape([[-2.07,-1.63],[2.07,-1.63],[2.18,-1.5],[2.18,1.5],[2.05,1.65],[-2.05,1.65],[-2.18,1.5],[-2.18,-1.5]],1.45,casing,.07))
     caseGroup.add(shape([[-2.04,-1.48],[2.04,-1.48],[2.1,-1.39],[2.1,1.46],[1.99,1.55],[-1.99,1.55],[-2.1,1.46],[-2.1,-1.39]],.08,bezel,.045));caseGroup.children[1]!.position.z=.77
     caseGroup.add(box(3.96,2.97,.08,dark,0,.05,.84))
@@ -61,10 +61,10 @@ export class ArcadeScene{
     const screen=new THREE.PlaneGeometry(3.74,2.805,24,18),position=screen.getAttribute('position')
     for(let i=0;i<position.count;i++){const x=position.getX(i)/1.87,y=position.getY(i)/1.4025;position.setZ(i,.13*(1-x*x*.5-y*y*.5))}position.needsUpdate=true;screen.computeVertexNormals()
     this.screenMesh=new THREE.Mesh(screen,this.monitorMaterial);this.screenMesh.position.set(0,.05,.90);caseGroup.add(this.screenMesh)
-    caseGroup.add(box(.7,.08,.07,this.mat('#7e897e'),0,-1.48,.87));caseGroup.add(box(.055,.026,.025,new THREE.MeshBasicMaterial({color:'#b5ef70'}),1.74,-1.48,.89))
-    for(let i=0;i<4;i++)caseGroup.add(box(.12,.042,.04,this.mat('#7c837b'),.97+i*.18,-1.48,.89))
-    for(let i=0;i<7;i++)caseGroup.add(box(.032,.34,.015,this.mat('#6d776e'),-1.79+i*.075,-1.37,.86))
-    this.scene.add(box(.9,.27,.7,this.mat('#7c857b'),0,.15,-.5));this.scene.add(box(2.4,.12,1.1,this.mat('#939889'),0,-.01,-.3))
+    caseGroup.add(box(.7,.08,.07,this.mat('#313d31'),0,-1.48,.87));caseGroup.add(box(.055,.026,.025,new THREE.MeshBasicMaterial({color:'#b5ef70'}),1.74,-1.48,.89))
+    for(let i=0;i<4;i++)caseGroup.add(box(.12,.042,.04,this.mat('#354237'),.97+i*.18,-1.48,.89))
+    for(let i=0;i<7;i++)caseGroup.add(box(.032,.34,.015,this.mat('#171f1b'),-1.79+i*.075,-1.37,.86))
+    this.scene.add(box(.9,.27,.7,this.mat('#242e26'),0,.15,-.5));this.scene.add(box(2.4,.12,1.1,this.mat('#303b31'),0,-.01,-.3))
     const socket=this.mat('#24282d');caseGroup.add(box(.15,.24,.055,socket,-2.10,-.72,.91));caseGroup.add(box(.105,.16,.14,this.mat('#474b51'),-2.10,-.72,.995))
     this.monitorPort.position.set(-2.10,-.72,1.08);caseGroup.add(this.monitorPort)
     this.batchRoom();this.camera.add(this.controller.group);this.scene.add(this.camera);this.scene.add(this.cord.mesh);this.resize()
@@ -90,8 +90,8 @@ export class ArcadeScene{
   resize(){
     this.width=innerWidth;this.height=innerHeight;const aspect=this.width/this.height
     this.renderer.setSize(this.width,this.height,false);this.camera.aspect=aspect
-    this.camera.position.set(.85,3.05,Math.max(6.35,4.55/(2*Math.tan(47/360*Math.PI)*aspect)*1.12-.5));this.camera.lookAt(this.target);this.camera.updateProjectionMatrix()
-    const scale=Math.min(1,aspect/1.15);this.controller.group.scale.setScalar(scale);this.controller.group.position.y=-.47
+    const view=arcadeView(aspect);this.camera.fov=view.fov;this.camera.position.set(...view.position);this.camera.lookAt(...view.target);this.camera.updateProjectionMatrix()
+    this.controller.group.scale.setScalar(view.controllerScale);this.controller.group.position.y=CONTROLLER_Y
   }
   screenCenter(){const p=new THREE.Vector3();this.screenMesh.getWorldPosition(p);p.project(this.camera);return{x:(p.x*.5+.5)*this.width,y:(-.5*p.y+.5)*this.height}}
   render(game:ArcadeGame,dt:number){

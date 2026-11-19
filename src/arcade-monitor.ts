@@ -1,6 +1,7 @@
 import {ArcadeGame,JET_COLORS,JET_VARIANTS} from './arcade-game'
-import type {Jet} from './arcade-game'
+import type {Jet,FaceTarget} from './arcade-game'
 import {pixelText,pixelWidth} from './arcade-pixel'
+import {BurntFace} from './arcade-burn'
 export type ScreenPoint={x:number;y:number}
 function polygon(ctx:CanvasRenderingContext2D,points:number[][],fill:string){ctx.fillStyle=fill;ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x!,y!):ctx.moveTo(x!,y!));ctx.closePath();ctx.fill()}
 function jetSprite(variant:number){
@@ -24,6 +25,8 @@ export class ArcadeMonitor{
   private glow=glowSprite()
   private faceImage=document.createElement('canvas')
   private explosionSeen=0
+  private burnOrigin:FaceTarget|null=null
+  private burn=new BurntFace()
   private shards:{sx:number;sy:number;x:number;y:number;vx:number;vy:number;size:number}[]=[]
   eyes:ScreenPoint[][]=[]
   eyeGlow=0
@@ -45,12 +48,12 @@ export class ArcadeMonitor{
     }
     if(game.explosionSerial!==this.explosionSeen){
       this.explosionSeen=game.explosionSerial;this.shards.length=0
-      if(game.dead&&game.lastFace){const f=game.lastFace;this.faceImage.width=w;this.faceImage.height=h;this.faceImage.getContext('2d')!.drawImage(this.canvas,0,0)
+      if(game.dead&&game.lastFace){const f=game.lastFace;this.burnOrigin=f;this.faceImage.width=w;this.faceImage.height=h;this.faceImage.getContext('2d')!.drawImage(this.canvas,0,0)
         const step=Math.max(10,Math.ceil(Math.max(f.right-f.left,f.bottom-f.top)/9))
         for(let y=Math.max(0,f.top);y<Math.min(h,f.bottom);y+=step)for(let x=Math.max(0,f.left);x<Math.min(w,f.right);x+=step){const dx=(x-f.x)/(f.right-f.left),dy=(y-f.y)/(f.bottom-f.top);if(dx*dx+dy*dy>.29)continue;this.shards.push({sx:x,sy:y,x,y,vx:dx*460+Math.sin(x*2+y)*45,vy:dy*360-80,size:step})}
       }
     }
-    if(game.dead&&game.face){ctx.save();const f=game.face;ctx.beginPath();f.outline.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.clip();ctx.fillStyle='#07121b';ctx.fillRect(f.left,f.top,f.right-f.left,f.bottom-f.top);ctx.fillStyle='#223348';for(let y=f.top;y<f.bottom;y+=10)ctx.fillRect(f.left,y,f.right-f.left,2);ctx.restore()}
+    if(game.dead&&game.face&&this.burnOrigin)this.burn.draw(ctx,game.face,this.burnOrigin,this.faceImage,game.deathAge,game.hp)
     if(game.dead&&game.deathAge<1.7){const t=game.deathAge;ctx.globalAlpha=Math.max(0,1-t/1.7);for(const s of this.shards){ctx.drawImage(this.faceImage,s.sx,s.sy,s.size,s.size,Math.round(s.x+s.vx*t),Math.round(s.y+s.vy*t+160*t*t),s.size,s.size)}ctx.globalAlpha=1}
     this.eyeGlow+=(Number(game.firing)-this.eyeGlow)*(1-Math.exp(-dt*24))
     if(this.eyeGlow>.01){

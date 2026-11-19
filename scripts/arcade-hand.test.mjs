@@ -40,11 +40,16 @@ test('Skin weights are normalized and only one skin mesh is used for all five fi
 test('Both index fingertips sit visibly above the controller and visibly depress on firing while the wrist remains fixed',()=>{
  for(const side of [-1,1]){
   const skin=new THREE.MeshStandardMaterial(),nail=new THREE.MeshStandardMaterial(),hand=new UnifiedHand(side,skin,nail),g=hand.skin.geometry,p=g.getAttribute('position'),w=g.getAttribute('skinWeight'),j=g.getAttribute('skinIndex')
-  let index=-1;for(let i=0;i<p.count;i++)if(j.getY(i)===2&&w.getY(i)>.99&&p.getY(i)>.43&&p.getZ(i)>.16)index=i
+  let index=-1;for(let i=0;i<p.count;i++)if(j.getY(i)===2&&w.getY(i)>.99&&p.getY(i)>.36&&p.getZ(i)>.11&&Math.abs(p.getX(i))<.64)index=i
   assert.ok(index>=0,'visible index skin on the front of the shoulder button');assert.equal(hand.group.getObjectByName('index-nail')?.parent,hand.skin.skeleton.bones[2])
   hand.group.updateMatrixWorld(true);hand.skin.skeleton.update();const before=hand.skin.getVertexPosition(index,new THREE.Vector3()).clone()
   hand.pose(0,0,1,[.5,.5,.5,.5]);hand.group.updateMatrixWorld(true);hand.skin.skeleton.update();const after=hand.skin.getVertexPosition(index,new THREE.Vector3())
-  assert.ok(before.y-after.y>.039);assert.ok(before.z-after.z>.029)
+  assert.ok(before.y-after.y>.024);assert.ok(before.z-after.z>.022)
   g.dispose();skin.dispose();nail.dispose()
  }
+})
+test('Index root has a broad continuous back-of-hand volume and the bent index stays compact',()=>{
+ const g=handGeometry(1),p=g.getAttribute('position'),j=g.getAttribute('skinIndex'),xs=[];let indexTop=-Infinity
+ for(let i=0;i<p.count;i++){if(Math.abs(p.getY(i)-.08)<.014&&p.getZ(i)>.06&&p.getX(i)>.65)xs.push(p.getX(i));if(j.getY(i)===2)indexTop=Math.max(indexTop,p.getY(i))}
+ assert.ok(Math.max(...xs)-Math.min(...xs)>.23,'back of hand must reach the index knuckle without a narrow stalk');assert.ok(indexTop<.46,'index must bend along the shoulder rather than form a tall hook');g.dispose()
 })

@@ -53,10 +53,10 @@ test('Jets aim real enemy projectiles at the tracked face and stop targeting whe
 })
 test('Only enemy hits drain health, smoothly after contact, with bounded burst damage',()=>{
  const g=new ArcadeGame(()=>.4),f=face();g.jets.length=0;g.enemyBullets.push(enemy());g.update(1/60,[],f,true)
- assert.equal(g.hp,100);assert.equal(g.damageDebt,12);assert.equal(g.enemyBullets.length,0)
+ assert.equal(g.hp,100);assert.equal(g.damageDebt,5);assert.equal(g.enemyBullets.length,0)
  g.update(1/60,[],f,true);assert.ok(g.hp<100&&g.hp>99)
- for(let i=0;i<40;i++)g.update(1/60,[],f,true);assert.ok(Math.abs(g.hp-88)<.001)
- for(let i=0;i<30;i++)g.enemyBullets.push(enemy());g.update(1/60,[],f,true);assert.equal(g.damageDebt,12)
+ for(let i=0;i<40;i++)g.update(1/60,[],f,true);assert.ok(Math.abs(g.hp-95)<.001)
+ for(let i=0;i<20;i++)g.update(1/60,[],f,true);for(let i=0;i<30;i++)g.enemyBullets.push(enemy());g.update(1/60,[],f,true);assert.equal(g.damageDebt,5)
  const health=g.hp;g.enemyBullets.push(enemy(30,30));g.update(1/60,[],f,true);assert.ok(g.hp>health-1)
 })
 test('Zero HP explodes once, stops guns, and only sustained off-screen face tracking can recharge and revive',()=>{
@@ -64,8 +64,8 @@ test('Zero HP explodes once, stops guns, and only sustained off-screen face trac
  assert.equal(g.hp,0);assert.equal(g.dead,true);assert.equal(g.firing,false);assert.equal(g.rounds,0);const serial=g.explosionSerial;assert.ok(g.debris.length>=100)
  for(let i=0;i<120;i++)g.update(1/60,[input()],f,true);assert.equal(g.explosionSerial,serial);assert.equal(g.hp,0)
  for(let i=0;i<120;i++)g.update(1/60,[],null,false);assert.equal(g.hp,0)
- for(let i=0;i<30;i++)g.update(1/60,[],null,true);assert.equal(g.hp,0)
- g.update(1/60,[],f,true);for(let i=0;i<30;i++)g.update(1/60,[],null,true);assert.equal(g.hp,0)
+ for(let i=0;i<10;i++)g.update(1/60,[],null,true);assert.equal(g.hp,0)
+ g.update(1/60,[],f,true);for(let i=0;i<10;i++)g.update(1/60,[],null,true);assert.equal(g.hp,0)
  for(let i=0;i<320;i++)g.update(1/60,[],null,true);assert.equal(g.hp,100);assert.equal(g.dead,false)
  g.update(1/60,[input()],f,true);assert.ok(g.rounds>0)
 })
@@ -87,4 +87,12 @@ test('Shared MediaPipe runtime emits matching face contours only on new face inf
  const detected=runtime.detect({},1,true);assert.equal(detected.faceOutline.length,36);assert.equal(detected.eyes.length,2)
  const skipped=runtime.detect({},2,true);assert.equal(skipped.faceOutline,null);assert.equal(skipped.eyes,null);assert.equal(calls,1)
  present=false;const absent=runtime.detect({},3,true);assert.equal(absent.faceOutline.length,0);assert.equal(absent.eyes.length,0);assert.equal(calls,2)
+})
+test('Easy balance survives ten seconds of continuous incoming hits and fully recharges from empty within two seconds',()=>{
+ const g=new ArcadeGame(()=>.4),f=face();g.jets.length=0
+ for(let i=0;i<600;i++){g.enemyBullets.push(enemy());g.update(1/60,[],f,true)}
+ assert.equal(g.dead,false);assert.ok(g.hp>=40,'continuous unavoidable shots must leave a generous health reserve')
+ g.hp=0;g.dead=true;g.damageDebt=0
+ for(let i=0;i<120;i++)g.update(1/60,[],null,true)
+ assert.equal(g.hp,100);assert.equal(g.dead,false)
 })

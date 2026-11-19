@@ -47,10 +47,12 @@ export class UnifiedHand{
     const nail=new THREE.Mesh(new THREE.SphereGeometry(1,18,10),nailMaterial);nail.scale.set(.030,.044,.004)
     const nx=side*.575+(side>0?.065:.015),ny=.116,probe=new THREE.Mesh(this.skin.geometry,material),ray=new THREE.Raycaster(new THREE.Vector3(nx,ny,1),new THREE.Vector3(0,0,-1)),hit=ray.intersectObject(probe,false)[0]
     nail.position.set(nx,ny,(hit?.point.z??.332)+.004);nail.rotation.set(.09,0,side*.385);this.bones[1]!.add(nail)
-    const indexNail=new THREE.Mesh(new THREE.SphereGeometry(1,14,8),nailMaterial);indexNail.name='index-nail';indexNail.scale.set(.035,.025,.004);indexNail.position.set(side*.587,.443,.195);indexNail.rotation.z=side*.1;this.bones[2]!.add(indexNail)
+    const indexNail=new THREE.Mesh(new THREE.SphereGeometry(1,14,8),nailMaterial);indexNail.name='index-nail';indexNail.scale.set(.032,.023,.004)
+    ray.set(new THREE.Vector3(side*.589,.381,1),new THREE.Vector3(0,0,-1));const indexHit=ray.intersectObject(probe,false)[0]
+    indexNail.position.set(side*.589,.381,(indexHit?.point.z??.14)+.004);indexNail.rotation.z=side*.12;this.bones[2]!.add(indexNail)
   }
   pose(thumbX:number,thumbY:number,press:number,curls:number[]){
     this.bones[1]!.position.set(thumbX*.045,thumbY*.042,-press*.032)
-    for(let i=0;i<4;i++)this.bones[i+2]!.position.set(0,(curls[i]!-.5)*.020-(i===0?press*.040:0),-(curls[i]!-.5)*.025-(i===0?press*.030:0))
+    for(let i=0;i<4;i++)this.bones[i+2]!.position.set(0,(curls[i]!-.5)*.018-(i===0?press*.025:0),-(curls[i]!-.5)*.025-(i===0?press*.023:0))
   }
 }

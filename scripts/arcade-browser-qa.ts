@@ -13,7 +13,7 @@ image.onload=async()=>{
  // These are controlled fixture contours and inputs, not a real camera / model test.
  monitor.eyes=[[{x:384,y:281},{x:393,y:275},{x:404,y:278},{x:400,y:285},{x:390,y:287}],[{x:313,y:241},{x:324,y:236},{x:334,y:240},{x:330,y:246},{x:319,y:247}]]
  const face=faceTarget(Array.from({length:36},(_,i)=>({x:353+84*Math.cos(i/36*Math.PI*2),y:256+106*Math.sin(i/36*Math.PI*2)})))!,mode=new URLSearchParams(location.search).get('mode')
- if(mode==='explode'||mode==='recharge'){game.hp=.1;game.damageDebt=1}
+ if(mode==='explode'||mode==='recharge'||mode==='burn'){game.hp=.1;game.damageDebt=1}
  if(mode==='damage'){game.hp=42;game.damageDebt=12}
  let last=0,count=0,times:number[]=[],done=false
  function frame(now:number){
@@ -22,11 +22,11 @@ image.onload=async()=>{
   if(mode==='enemy')hands.forEach(h=>h.firing=false)
   const begin=performance.now();game.update(dt,hands,mode==='recharge'&&count>0?null:face,true);monitor.render(game,video,true,dt);scene.render(game,dt);times.push(performance.now()-begin);count++
   if(count===1){log('3D scene + CRT shader initialized');log('Fixture video / two firing hands / eye contours')}
-  if(count===(mode==='explode'?12:100)&&!done){
+  if(count===(mode==='explode'?12:mode==='burn'?180:100)&&!done){
    const gl=scene.renderer.getContext(),data=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,data)
    let lit=0;for(let i=0;i<data.length;i+=4)if(Math.max(data[i],data[i+1],data[i+2])>60)lit++
    log((lit>10000?'PASS':'FAIL')+' scene pixels: '+lit)
-   if(mode==='explode'||mode==='recharge')log((game.dead&&game.rounds===0?'PASS':'FAIL')+' KO stops guns')
+   if(mode==='explode'||mode==='recharge'||mode==='burn')log((game.dead&&game.rounds===0?'PASS':'FAIL')+' KO stops guns')
    else if(mode==='enemy')log((game.enemyBullets.length>0?'PASS':'FAIL')+' enemy projectiles')
    else log((game.rounds>20?'PASS':'FAIL')+' dual-hand sustained fire: '+game.rounds+' rounds')
    log('Jets '+game.jets.length+' / kills '+game.kills);log('Draw calls '+scene.renderer.info.render.calls+' / triangles '+scene.renderer.info.render.triangles)

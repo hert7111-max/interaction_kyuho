@@ -9,6 +9,7 @@ export const JET_VARIANTS=8
 export const JET_COLORS=['#76b4c8','#88924f','#d34e53','#69cbc6','#d1a65c','#a57ac4','#a9b8b7','#5473ab'] as const
 export const MAX_JETS=15,MAX_BULLETS=90,MAX_DEBRIS=300
 export const MAX_ENEMY_BULLETS=64
+export const EASY_COMBAT=Object.freeze({hitDamage:5,damageRate:8,invulnerability:.9,regenDelay:.25,regenRate:60,shotInterval:2.8,shotJitter:1.6,bulletSpeed:105})
 export type FaceTarget={outline:Point[];x:number;y:number;left:number;right:number;top:number;bottom:number}
 export function faceTarget(outline:Point[]):FaceTarget|null{
   if(outline.length<8||outline.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null
@@ -92,15 +93,15 @@ export class ArcadeGame{
   spawn(y=530){
     if(this.jets.length>=MAX_JETS)return
     const jet=this.jetPool.pop()??{} as Jet,r=this.random
-    Object.assign(jet,{id:++this.serial,x:42+r()*556,y,speed:38+r()*34,variant:this.variant++%JET_VARIANTS,scale:.65+r()*.3,phase:r()*6.28,state:'flying',vx:0,vy:0,angle:0,age:0,smoke:0,shotClock:.7+r()*1.2});this.jets.push(jet)
+    Object.assign(jet,{id:++this.serial,x:42+r()*556,y,speed:38+r()*34,variant:this.variant++%JET_VARIANTS,scale:.65+r()*.3,phase:r()*6.28,state:'flying',vx:0,vy:0,angle:0,age:0,smoke:0,shotClock:1.4+r()*1.4});this.jets.push(jet)
   }
   update(dt:number,hands:ArcadeHand[],face:FaceTarget|null=this.face,trackingActive=this.trackingActive){
     dt=Math.max(0,Math.min(.06,dt));this.time+=dt;this.hands=hands;this.flash=Math.max(0,this.flash-dt*7);this.recoil*=Math.exp(-dt*24)
     this.face=face;this.trackingActive=trackingActive;if(face)this.lastFace=face
     this.hitFlash=Math.max(0,this.hitFlash-dt*3);this.hurtCooldown=Math.max(0,this.hurtCooldown-dt);if(this.dead)this.deathAge+=dt
-    this.absentTime=trackingActive&&!face?this.absentTime+dt:0;this.charging=this.absentTime>.65&&this.hp<100
-    if(this.charging){this.damageDebt=0;this.hp=Math.min(100,this.hp+24*dt);if(this.hp>=100){this.dead=false;this.deathAge=0;this.enemyPool.push(...this.enemyBullets);this.enemyBullets.length=0}}
-    else if(this.damageDebt>0&&!this.dead){const damage=Math.min(this.damageDebt,22*dt);this.damageDebt-=damage;this.hp=Math.max(0,this.hp-damage);if(this.hp<=0)this.explodeFace()}
+    this.absentTime=trackingActive&&!face?this.absentTime+dt:0;this.charging=this.absentTime>EASY_COMBAT.regenDelay&&this.hp<100
+    if(this.charging){this.damageDebt=0;this.hp=Math.min(100,this.hp+EASY_COMBAT.regenRate*dt);if(this.hp>=100){this.dead=false;this.deathAge=0;this.enemyPool.push(...this.enemyBullets);this.enemyBullets.length=0}}
+    else if(this.damageDebt>0&&!this.dead){const damage=Math.min(this.damageDebt,EASY_COMBAT.damageRate*dt);this.damageDebt-=damage;this.hp=Math.max(0,this.hp-damage);if(this.hp<=0)this.explodeFace()}
     const present=new Set<string>()
     for(const hand of hands){
       present.add(hand.id)
@@ -113,10 +114,10 @@ export class ArcadeGame{
     this.spawnClock-=dt;if(this.spawnClock<=0){this.spawn();this.spawnClock=.65+this.random()*.4}
     for(const jet of this.jets){
       jet.age+=dt;jet.phase+=dt
-      if(jet.state==='flying'){jet.y-=jet.speed*dt;jet.x+=Math.sin(jet.phase*1.8+jet.id)*13*dt;jet.angle=Math.sin(jet.phase*2)*.08;jet.shotClock-=dt;if(jet.shotClock<=0&&face&&!this.dead&&jet.y>0&&jet.y<480){this.enemyFire(jet,face);jet.shotClock=1.4+this.random()*1.2}}
+      if(jet.state==='flying'){jet.y-=jet.speed*dt;jet.x+=Math.sin(jet.phase*1.8+jet.id)*13*dt;jet.angle=Math.sin(jet.phase*2)*.08;jet.shotClock-=dt;if(jet.shotClock<=0&&face&&!this.dead&&jet.y>0&&jet.y<480){this.enemyFire(jet,face);jet.shotClock=EASY_COMBAT.shotInterval+this.random()*EASY_COMBAT.shotJitter}}
       else{jet.vy+=330*dt;jet.x+=jet.vx*dt;jet.y+=jet.vy*dt;jet.angle+=dt*2.8;jet.smoke+=dt;if(jet.smoke>.06){jet.smoke=0;this.particle('smoke',jet.x,jet.y,'#46545d')}}
     }
-    for(const b of this.enemyBullets){b.px=b.x;b.py=b.y;b.x+=b.vx*dt;b.y+=b.vy*dt;b.age+=dt;if(face&&!this.dead&&bulletHitsFace(b,face)){b.age=9;if(this.hurtCooldown<=0){this.damageDebt=Math.min(100,this.damageDebt+12);this.hitFlash=1;this.hurtCooldown=.24;for(let i=0;i<5;i++)this.particle('spark',b.x,b.y,'#ff5468')}}}
+    for(const b of this.enemyBullets){b.px=b.x;b.py=b.y;b.x+=b.vx*dt;b.y+=b.vy*dt;b.age+=dt;if(face&&!this.dead&&bulletHitsFace(b,face)){b.age=9;if(this.hurtCooldown<=0){this.damageDebt=Math.min(15,this.damageDebt+EASY_COMBAT.hitDamage);this.hitFlash=1;this.hurtCooldown=EASY_COMBAT.invulnerability;for(let i=0;i<5;i++)this.particle('spark',b.x,b.y,'#ff5468')}}}
     for(const bullet of this.bullets){
       bullet.px=bullet.x;bullet.py=bullet.y;bullet.x+=bullet.vx*dt;bullet.y+=bullet.vy*dt;bullet.age+=dt
       let nearest:Jet|null=null,distance=Infinity
@@ -133,7 +134,7 @@ export class ArcadeGame{
   }
   private enemyFire(jet:Jet,face:FaceTarget){
     if(this.enemyBullets.length>=MAX_ENEMY_BULLETS)return
-    const b=this.enemyPool.pop()??{} as Bullet,dx=face.x-jet.x,dy=face.y-jet.y,n=Math.hypot(dx,dy)||1,speed=140+jet.variant*7
+    const b=this.enemyPool.pop()??{} as Bullet,dx=face.x-jet.x,dy=face.y-jet.y,n=Math.hypot(dx,dy)||1,speed=EASY_COMBAT.bulletSpeed+jet.variant*4
     Object.assign(b,{x:jet.x,y:jet.y,px:jet.x,py:jet.y,vx:dx/n*speed,vy:dy/n*speed,age:0,side:'enemy'});this.enemyBullets.push(b)
   }
   private explodeFace(){

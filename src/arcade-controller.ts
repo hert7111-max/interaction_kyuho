@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {UnifiedHand,handMaterials} from './arcade-hand'
+import {CONTROLLER_Y} from './arcade-view'
 import type {ArcadeGame,ArcadeHand} from './arcade-game'
 const v=(x:number,y:number,z:number)=>new THREE.Vector3(x,y,z)
 function rounded(w:number,h:number,d:number,m:THREE.Material,x=0,y=0,z=0,r=.025){const mesh=new THREE.Mesh(new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/3,h/3,d/3)),m);mesh.position.set(x,y,z);return mesh}
@@ -41,11 +42,11 @@ export class ArcadeController{
     const texture=new THREE.CanvasTexture(label);const print=new THREE.Mesh(new THREE.PlaneGeometry(.34,.085),new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false}));print.position.set(0,.222,.158);this.group.add(print)
     this.group.add(rounded(.055,.015,.012,new THREE.MeshBasicMaterial({color:'#cd3a42'}),0,.025,.158,.004))
     const plug=rounded(.11,.09,.16,rubber,0,.32,-.015,.018);this.group.add(plug);this.cablePort.position.set(0,.37,-.085);this.group.add(this.cablePort)
-    this.group.position.set(0,-.47,-2.65);this.group.rotation.x=-.37
+    this.group.position.set(0,CONTROLLER_Y,-3.15);this.group.rotation.x=-.28
   }
   update(game:ArcadeGame,dt:number){
     const alpha=1-Math.exp(-dt*19)
-    this.group.rotation.z=Math.sin(game.time*.65)*.005+Math.sin(game.time*37)*game.recoil*.018;this.group.rotation.x=-.37-game.recoil*.065;this.group.position.y=-.47+Math.sin(game.time*.9)*.002-game.recoil*.024
+    this.group.rotation.z=Math.sin(game.time*.65)*.005+Math.sin(game.time*37)*game.recoil*.018;this.group.rotation.x=-.28-game.recoil*.065;this.group.position.y=CONTROLLER_Y+Math.sin(game.time*.9)*.002-game.recoil*.024
     for(let i=0;i<2;i++){
       const rig=this.rigs[i]!,id=i===0?'Left':'Right',hand:ArcadeHand|undefined=game.hands.find(h=>h.id===id)??game.hands.filter(h=>h.id!=='Left'&&h.id!=='Right')[i],firing=hand?.firing&&!game.dead,fire=firing?.5+.5*Math.sin(game.time*Math.PI*24+i*.7):0,tx=(hand?.thumb.x??0)+(firing?Math.sin(game.time*18+i)*.32:0),ty=(hand?.thumb.y??0)+(firing?Math.cos(game.time*22+i)*.28:0)
       rig.thumbX+=(tx-rig.thumbX)*alpha;rig.thumbY+=(ty-rig.thumbY)*alpha
