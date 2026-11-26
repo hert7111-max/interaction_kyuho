@@ -1,0 +1,163 @@
+body[data-experiment=minecraft] {
+  margin: 0;
+  overflow: hidden;
+  background: #181621;
+  color: #f7e9cd;
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+}
+#mine {
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  background: radial-gradient(ellipse at 64% 43%, #393653, #191925 55%, #111019 100%);
+  --metal: #dcaa78;
+  --panel: #201d2bef;
+  --ink: #f9e8c8;
+  --line: #78677e;
+  --pixel: ui-monospace, "Menlo", monospace;
+}
+#mine *, #mine *::before, #mine *::after { box-sizing: border-box; }
+#mine [hidden] { display: none !important; }
+.mine-video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.mine-view, .mine-vignette { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mine-view { touch-action: none; cursor: crosshair; display: block; }
+.mine-vignette {
+  pointer-events: none;
+  background: linear-gradient(#17142165, transparent 21%, transparent 72%, #0c0b15a8);
+}
+.mine-aim {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 25px;
+  height: 25px;
+  transform: translate(-50%, -50%);
+  color: #fff4db;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px #211523) drop-shadow(0 0 1px #211523);
+}
+.mine-aim::before, .mine-aim::after { content: ""; position: absolute; background: currentColor; }
+.mine-aim::before { top: 11px; left: 3px; width: 19px; height: 3px; }
+.mine-aim::after { top: 3px; left: 11px; width: 3px; height: 19px; }
+.mine-aim[data-target=true] { color: #ffd091; }
+.mine-aim[data-flash=true] { color: #ff645a; }
+#mine button {
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #262333;
+  touch-action: manipulation;
+}
+#mine button:hover { background: #3a3145; }
+#mine button:focus-visible, #mine canvas:focus-visible { outline: 2px solid #ffd091; outline-offset: 4px; }
+#mine button:disabled { opacity: .65; cursor: wait; }
+.mine-intro { position: absolute; top: 42%; left: max(8%, 28px); transform: translateY(-50%); max-width: 65%; }
+.mine-intro h1 {
+  font-family: var(--pixel);
+  font-weight: 900;
+  font-size: clamp(2.1rem, 6.8vw, 6.5rem);
+  line-height: 1;
+  margin: 0 0 18px;
+  letter-spacing: -.09em;
+  text-shadow: 0 3px #9b665b, 0 7px #21182a;
+}
+.mine-intro p { margin: 0 0 24px; color: #ded2d7; font-size: .95rem; line-height: 1.55; }
+#mine .mine-start { background: #f2c08a; color: #262032; font-weight: 800; padding: 10px 18px; border-color: #ffdcad; box-shadow: 3px 3px #805d5a; }
+#mine .mine-start:hover { background: #ffdbac; }
+.mine-hud { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 7px; }
+.mine-selected { font: bold 12px var(--pixel); letter-spacing: .08em; text-shadow: 1px 2px #15101d; min-height: 14px; }
+.mine-belt {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid #a48b9a;
+  box-shadow: 0 4px #171321, inset 0 -2px #130f1c;
+  background: var(--panel);
+}
+#mine .mine-slot { position: relative; display: grid; place-items: center; width: 54px; height: 54px; padding: 0; }
+.mine-slot img { width: 49px; height: 49px; display: block; }
+.mine-slot kbd, .mine-inventory kbd { color: #e4baa3; font: bold 10px var(--pixel); }
+.mine-slot kbd { position: absolute; top: 3px; left: 4px; }
+#mine .mine-slot[aria-pressed=true], #mine .mine-item[aria-pressed=true] { border: 2px solid var(--metal); background: #463447; }
+#mine .mine-pack { align-self: stretch; min-width: 53px; padding: 0 6px; font-size: 11px; }
+.mine-inventory {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 248px;
+  padding: 12px;
+  border: 1px solid #a48b9a;
+  background: var(--panel);
+  box-shadow: 4px 4px #181322;
+}
+.mine-inventory header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font: bold 12px var(--pixel); }
+#mine .mine-item { display: flex; width: 100%; align-items: center; margin-top: 4px; padding: 0 8px 0 0; gap: 6px; text-align: left; font-size: .82rem; }
+.mine-item img { display: block; width: 35px; height: 35px; }
+.mine-item kbd { margin-left: auto; }
+#mine .mine-close { width: 26px; height: 26px; font-size: 17px; }
+#mine .mine-stop { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); right: 18px; padding: 8px 10px; font-size: 11px; background: var(--panel); }
+.mine-status {
+  position: absolute;
+  z-index: 1;
+  bottom: 112px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 85%;
+  padding: 7px 10px;
+  background: var(--panel);
+  color: #f7e9cd;
+  text-align: center;
+  font-size: .78rem;
+  pointer-events: none;
+}
+.mine-status:empty { display: none; }
+body[data-experiment=minecraft] .experiment-menu { background: #221c2bed; }
+@media (max-width: 700px) {
+  body[data-experiment=minecraft] .experiment-menu { top: max(14px, env(safe-area-inset-top)); }
+  .mine-intro { top: 29%; left: 7%; max-width: 86%; }
+  .mine-intro h1 { margin-bottom: 10px; }
+  .mine-intro p { margin-bottom: 14px; font-size: .82rem; }
+  #mine .mine-stop { bottom: auto; top: 59px; right: 14px; }
+}
+@media (max-height: 450px) and (orientation: landscape) {
+  .mine-intro { top: 44%; }
+  .mine-intro h1 { font-size: 2.75rem; margin-bottom: 10px; }
+  .mine-intro p { margin-bottom: 10px; }
+  .mine-hud, #mine .mine-stop { bottom: 10px; }
+  #mine .mine-slot { width: 42px; height: 42px; }
+  .mine-slot img { width: 37px; height: 37px; }
+}
+
+.mine-life {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  font: bold 11px var(--pixel);
+  color: #ffe5cf;
+  text-shadow: 1px 2px #15101d;
+}
+.mine-life meter {
+  appearance: none;
+  width: 126px;
+  height: 10px;
+  border: 1px solid #d6a594;
+  background: #342635;
+}
+.mine-life meter::-webkit-meter-bar {
+  background: #342635;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.mine-life meter::-webkit-meter-optimum-value { background: #e26a65; border-radius: 0; }
+.mine-life meter::-moz-meter-bar { background: #e26a65; }
+#mine .mine-respawn { padding: 3px 8px; background: var(--panel); }
+.mine-life.is-defeated meter { border-color: #a77d81; }
+.mine-status { bottom: 138px; }

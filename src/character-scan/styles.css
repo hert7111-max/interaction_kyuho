@@ -1,0 +1,151 @@
+body[data-experiment=character-scan] {
+  margin: 0;
+  background: var(--scan-backdrop);
+  color: var(--scan-ink);
+}
+body[data-experiment=character-scan] .experiment-menu {
+  background: var(--scan-backdrop);
+  border-color: var(--scan-rule);
+  box-shadow: none;
+}
+body[data-experiment=character-scan] .experiment-menu a {
+  color: var(--scan-muted);
+  box-shadow: none;
+}
+body[data-experiment=character-scan] .experiment-menu a:is(:hover, [aria-current=page]) {
+  color: var(--scan-ink);
+  background: var(--scan-hover);
+}
+body[data-experiment=character-scan] .experiment-menu a:focus-visible {
+  outline-color: var(--scan-ink);
+}
+#scan-stage { position: fixed; inset: 0; overflow: hidden; isolation: isolate; font-family: var(--scan-font); }
+#scan-stage [hidden] { display: none !important; }
+.scan-video, .scan-character, .scan-overlay, .scan-hud { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scan-video {
+  z-index: var(--scan-video-layer);
+  object-fit: cover;
+  transform: scaleX(-1);
+  filter: brightness(var(--scan-brightness));
+}
+.scan-character { z-index: var(--scan-character-layer); width: var(--scan-character-width); image-rendering: pixelated; }
+.scan-overlay { z-index: var(--scan-overlay-layer); pointer-events: none; }
+.scan-hud { z-index: var(--scan-hud-layer); pointer-events: none; }
+.scan-entry { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; }
+.scan-start {
+  pointer-events: auto;
+  position: relative;
+  font: inherit;
+  font-size: var(--scan-text-size);
+  min-width: var(--scan-button-width);
+  padding: var(--scan-button-padding);
+  letter-spacing: var(--scan-button-tracking);
+  color: var(--scan-ink);
+  background: transparent;
+  border: var(--scan-thin-line) solid var(--scan-rule);
+  cursor: pointer;
+  animation: scan-breathe var(--scan-breathe-ms) ease-in-out infinite alternate;
+}
+/* Eight short strokes form the four open brackets. */
+.scan-start::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--scan-thin-line));
+  pointer-events: none;
+  --scan-stroke: linear-gradient(var(--scan-ink), var(--scan-ink));
+  --scan-horizontal: var(--scan-corner) var(--scan-thin-line);
+  --scan-vertical: var(--scan-thin-line) var(--scan-corner);
+  background:
+    var(--scan-stroke) top left / var(--scan-horizontal) no-repeat,
+    var(--scan-stroke) top left / var(--scan-vertical) no-repeat,
+    var(--scan-stroke) top right / var(--scan-horizontal) no-repeat,
+    var(--scan-stroke) top right / var(--scan-vertical) no-repeat,
+    var(--scan-stroke) bottom left / var(--scan-horizontal) no-repeat,
+    var(--scan-stroke) bottom left / var(--scan-vertical) no-repeat,
+    var(--scan-stroke) bottom right / var(--scan-horizontal) no-repeat,
+    var(--scan-stroke) bottom right / var(--scan-vertical) no-repeat;
+}
+.scan-start:hover, .scan-start:focus-visible { background: var(--scan-hover); animation: none; }
+.scan-start:focus-visible { outline-color: var(--scan-ink); }
+.scan-start:disabled { cursor: wait; animation: none; }
+.scan-status {
+  position: absolute; top: 50%; margin: 0; padding: var(--scan-button-padding);
+  transform: translateY(var(--scan-status-offset)); text-align: center; font-size: var(--scan-text-size);
+  color: var(--scan-muted);
+}
+.scan-status:empty { display: none; }
+#scan-stage[data-phase=SCANNING] .scan-status {
+  top: auto; bottom: max(var(--scan-rescan-bottom), env(safe-area-inset-bottom)); transform: none;
+}
+.scan-log {
+  position: absolute; right: var(--scan-edge);
+  top: max(var(--scan-panel-top), env(safe-area-inset-top));
+  width: min(var(--scan-panel-width), calc(100% - 2 * var(--scan-edge)));
+  font-size: var(--scan-text-size);
+}
+.scan-log-title { display: flex; justify-content: space-between; gap: var(--scan-gap); }
+.scan-progress { height: var(--scan-thin-line); margin-block: var(--scan-gap); background: var(--scan-rule); }
+.scan-progress span { display: block; height: 100%; background: var(--scan-ink); transform: scaleX(0); transform-origin: left; }
+.scan-steps { display: grid; gap: var(--scan-gap); list-style: none; padding: 0; margin: 0; color: var(--scan-muted); }
+#scan-stage[data-phase=IDLE] .scan-video { visibility: hidden; }
+@keyframes scan-breathe { from { opacity: var(--scan-min-opacity); } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scan-start { animation: none; } }
+
+.scan-subject-label {
+  position: absolute;
+  left: 0;
+  bottom: max(var(--scan-subject-label-bottom), var(--scan-subject-label-clearance));
+  width: var(--scan-character-width);
+  margin: 0;
+  box-sizing: border-box;
+  padding-inline: var(--scan-gap);
+  color: var(--scan-ink);
+  font-size: var(--scan-text-size);
+  letter-spacing: var(--scan-button-tracking);
+  text-align: center;
+}
+#scan-stage[data-phase=CONTROL] .scan-entry { place-content: end center; padding-bottom: var(--scan-rescan-bottom); }
+#scan-stage[data-phase=CONTROL] .scan-start { animation: none; }
+
+.scan-state {
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: var(--scan-ink);
+  font-size: var(--scan-text-size);
+  white-space: nowrap;
+}
+.scan-state span, .scan-state::after {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+}
+.scan-state span { bottom: calc(var(--scan-state-line) + var(--scan-state-gap)); }
+.scan-state::after {
+  content: "";
+  bottom: 0;
+  width: var(--scan-thin-line);
+  height: var(--scan-state-line);
+  background: var(--scan-ink);
+}
+
+.scan-control, .scan-debug {
+  position: absolute;
+  right: var(--scan-edge);
+  margin: 0;
+  color: var(--scan-ink);
+  font: inherit;
+  font-size: var(--scan-text-size);
+}
+.scan-control {
+  top: calc(var(--scan-panel-top) + var(--scan-status-offset));
+  max-width: calc(100% - 2 * var(--scan-edge));
+  text-align: right;
+}
+.scan-debug {
+  bottom: var(--scan-debug-bottom);
+  min-width: var(--scan-panel-width);
+  padding: var(--scan-button-padding);
+  box-sizing: border-box;
+  border: var(--scan-thin-line) solid var(--scan-rule);
+  background: var(--scan-backdrop);
+}

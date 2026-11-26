@@ -12,6 +12,8 @@ for (const name of ['vision_bundle.js', 'wasm/vision_wasm_internal.js', 'wasm/vi
 const models = [
   ['hand_landmarker.task', 'hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'],
   ['face_landmarker.task', 'face_landmarker/face_landmarker/float16/1/face_landmarker.task'],
+  ['gesture_recognizer.task', 'gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'],
+  ['pose_landmarker_lite.task', 'pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'],
   ['selfie_segmenter.tflite', 'image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite'],
 ]
 await Promise.all(models.map(async ([filename, path]) => {
@@ -26,4 +28,4 @@ await Promise.all(models.map(async ([filename, path]) => {
   } catch (error) { await rm(temporary, { force: true }); throw error }
 }))
 await pipeline(createReadStream(new URL('wasm/vision_wasm_internal.wasm', destination)), createGzip({level:9}), createWriteStream(new URL('wasm/vision_wasm_internal.wasm.gz', destination)))
-console.log('MediaPipe SDK, WASM, hand, face and HumanSeg models ready locally.')
+console.log('MediaPipe SDK, WASM, hand, face, pose, gesture and HumanSeg models ready locally.')

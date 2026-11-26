@@ -16,13 +16,21 @@ self.PapaVisionRuntime=class {
         vision.wasmBinaryPath=this.binaryUrl
       }catch{/* Original runtime remains available on restricted in-app browsers. */}
     }
+    const preferCPU=options.cpu===true
     const make=async(Task,model,options)=>{
       const baseOptions={modelAssetPath:base+'mediapipe/'+model}
-      try{return await Task.createFromOptions(vision,{...options,baseOptions:{...baseOptions,delegate:'GPU'}})}
-      catch{return await Task.createFromOptions(vision,{...options,baseOptions:{...baseOptions,delegate:'CPU'}})}
+      if(!preferCPU){
+        try{return await Task.createFromOptions(vision,{...options,baseOptions:{...baseOptions,delegate:'GPU'}})}
+        catch{/* Continue with CPU inference. */}
+      }
+      return await Task.createFromOptions(vision,{...options,baseOptions:{...baseOptions,delegate:'CPU'}})
     }
     const initialize=async()=>{
-      this.hands=await make(Vision.HandLandmarker,'hand_landmarker.task',{runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,minTrackingConfidence:.5})
+      this.hands=await make(Vision.HandLandmarker,'hand_landmarker.task',{
+        runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,
+        minTrackingConfidence:options.fastHands ? .36 : .5,
+        ...(options.fastHands ? {minHandPresenceConfidence:.42} : {}),
+      })
       if(this.cancelled){this.hands.close();this.hands=null;throw new Error('Cancelled')}
       if(!options.handsOnly)this.face=await make(Vision.FaceLandmarker,'face_landmarker.task',{runningMode:'VIDEO',numFaces:1})
       if(this.cancelled){this.close();throw new Error('Cancelled')}

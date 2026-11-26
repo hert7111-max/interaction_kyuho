@@ -4,7 +4,17 @@
 
 카메라 아이콘으로 시작합니다. 엄지를 세우고 검지를 뻗은 뒤 나머지 손가락을 접으면 총 자세가 됩니다. Easy 설정으로 전투기 피격 피해를 줄였고, HP 0에서는 얼굴이 폭발한 뒤 불꽃·연기와 파손 흔적이 남습니다. 얼굴을 화면 밖으로 빼면 빠르게 충전되며, 격추하면 픽셀 콤보가 쌓입니다. [구현과 검증](docs/arcade.md)
 
+프로젝트 구조: [구성 지도](docs/project-map.md)
+
 ## 예제 보관
+
+- `/?example=face-reaction`: 페이스 리액션 · 허공 주먹 동작에 반응하는 실시간 얼굴 효과
+
+- `/?example=invisible`: 투명인간 · 머리 위 박수로 화면 속 사람을 배경에 합성
+
+- `/?example=minecraft`: MineCraft · 카메라 위 3D 무기와 사람 윤곽을 이용한 타격 효과
+
+- `/?example=rubber`: [고무 인간](docs/rubber.md)
 
 - 기본 화면 / `/?example=arcade`: CRT Arcade
 - `/?example=particle`: [particle · 고무 변형](docs/particle.md)

@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>고무 인간 · photographic texture QA</title><style>body{margin:0;background:#000;color:#fff;font:12px monospace}canvas{position:absolute;inset:0;width:100%;height:100%}video{position:absolute;width:1px;height:1px;opacity:0}pre{position:fixed;z-index:3;left:12px;top:12px;max-width:80%;padding:15px;background:#000c;white-space:pre-wrap;line-height:1.8}</style></head><body><video muted playsinline></video><canvas></canvas><pre>고무 인간 · actual photograph / both hands / GPU pixel QA</pre><script type="module">
+import {RubberFace} from '/src/rubber-engine.ts'
+import {RubberRenderer} from '/src/rubber-renderer.ts'
+import {RubberTracking} from '/src/rubber-tracking.ts'
+import {cameraToSurface} from '/src/water-math.ts'
+const log=t=>document.querySelector('pre').textContent+='\n'+t,video=document.querySelector('video'),canvas=document.querySelector('canvas')
+addEventListener('error',e=>log('FAIL '+e.message))
+const originalError=console.error;console.error=(...args)=>{originalError(...args);log('GPU ERROR '+args.join(' '))}
+try{
+ const image=new Image();image.crossOrigin='anonymous';image.src='https://storage.googleapis.com/mediapipe-tasks/hand_landmarker/woman_hands.jpg';await image.decode()
+ const source=document.createElement('canvas');source.width=image.width;source.height=image.height;const context=source.getContext('2d');let pumping=true;function pump(){if(!pumping)return;context.drawImage(image,0,0);requestAnimationFrame(pump)}pump();video.srcObject=source.captureStream(30);await video.play()
+ const engine=new RubberFace(),renderer=new RubberRenderer(canvas,video,engine);renderer.ready=true
+ const tracker=new RubberTracking(),mode=new URLSearchParams(location.search).get('backend')
+ const actualTracker=mode?new RubberTracking({worker:mode!=='main',bitmap:mode!=='pixels'}):tracker
+ const result=await new Promise(async(resolve,reject)=>{actualTracker.onresult=resolve;actualTracker.onerror=reject;try{await actualTracker.init(location.origin+'/');await actualTracker.frame(video,performance.now(),1)}catch(error){reject(error)}})
+ actualTracker.close();tracker.close()
+ if(!result.face.length)throw Error('Sample face was not detected')
+ log('PASS actual MediaPipe: '+result.face.length+' face points / '+result.landmarks.length+' hands')
+ const aspect=video.videoWidth/video.videoHeight,map=p=>cameraToSurface(p,aspect,innerWidth/innerHeight,true)
+ renderer.setFace(result.face.map(map));renderer.render(aspect)
+ const gl=canvas.getContext('webgl2'),pixel=p=>{const out=new Uint8Array(4);gl.readPixels(Math.floor(p.x*gl.drawingBufferWidth),Math.floor(p.y*gl.drawingBufferHeight),1,1,gl.RGBA,gl.UNSIGNED_BYTE,out);return [...out].slice(0,3)}
+ const left=renderer.local(map(result.face[205])),right=renderer.local(map(result.face[425]))
+ const a=left.x<right.x?left:right,b=left.x<right.x?right:left
+ const screen=p=>{const origin=map(result.face[205]),local=renderer.local(origin),other=map(result.face[425]),otherLocal=renderer.local(other),w=(other.x-origin.x)/(otherLocal.x-local.x);const top=map(result.face[10]),bottom=map(result.face[152]),lt=renderer.local(top),lb=renderer.local(bottom),h=(top.y-bottom.y)/(lt.y-lb.y);return{x:origin.x+(p.x-local.x)*w,y:origin.y+(p.y-local.y)*h}}
+ const base=[pixel(screen(a)),pixel(screen(b))];if(!base.every(c=>Math.max(...c)>25))throw Error('Camera texture is black');log('PASS real camera face pixels: '+JSON.stringify(base))
+ const hand=(p,gap=.01)=>{const h=Array.from({length:21},()=>({...p}));h[0]={x:p.x,y:p.y-.15};h[9]={x:p.x,y:p.y+.02};h[5]={x:p.x-.08,y:p.y};h[17]={x:p.x+.08,y:p.y};h[4]={x:p.x-gap/2,y:p.y};h[8]={x:p.x+gap/2,y:p.y};return h}
+ engine.hand('Left',hand(a),p=>renderer.pick(p));engine.hand('Right',hand(b),p=>renderer.pick(p))
+ if(engine.handles.size!==2)throw Error('Both face points must be grabbed');log('PASS both face points grabbed')
+ let last=0,age=0,checked=false,released=false,done=false
+ function frame(now){
+  const dt=last?Math.min(.05,(now-last)/1000):1/60;last=now;age+=dt
+  if(!released){const t=Math.min(1,age/1.5);engine.hand('Left',hand({x:a.x-.65*t,y:a.y+.12*t}),()=>null);engine.hand('Right',hand({x:b.x+.65*t,y:b.y+.12*t}),()=>null)}
+  engine.update(dt);renderer.render(aspect)
+  if(!checked&&age>2){checked=true;const colors=[pixel(screen(engine.deform(a))),pixel(screen(engine.deform(b)))];const errors=colors.map((c,i)=>Math.max(...c.map((v,j)=>Math.abs(v-base[i][j]))));log((errors.every(e=>e<45)?'PASS':'FAIL')+' actual face pixels follow BOTH grips: RGB errors '+errors);log((gl.getError()===gl.NO_ERROR?'PASS':'FAIL')+' WebGL texture/render state');if(new URLSearchParams(location.search).has('hold')){requestAnimationFrame(frame);return;}engine.release('Left');released=true}
+  if(released&&age>4&&!done){done=true;log((engine.handles.size===1?'PASS':'FAIL')+' left releases while right stays pinned');engine.release('Right')}
+  if(done&&age>6){log((engine.handles.size===0?'PASS':'FAIL')+' both restore original camera');pumping=false;video.srcObject.getTracks().forEach(t=>t.stop());return}
+  requestAnimationFrame(frame)
+ }
+ requestAnimationFrame(frame)
+}catch(error){log('FAIL '+error.stack)}
+</script></body></html>
