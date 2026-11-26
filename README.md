@@ -25,6 +25,33 @@
 
 기존 예제의 효과와 추적 코드를 유지합니다. 테스트는 `npm test`, 프로덕션 빌드와 무손실 압축은 `npm run build`로 실행합니다. 개발 서버는 작업 중 실행하지 않았습니다.
 
+## GitHub Pages 자동 배포
+
+`.github/workflows/deploy-pages.yml`은 `main`에 push하거나 Actions에서 수동 실행하면 Node.js 24 → `npm ci` → 모델 준비·TypeScript 검사·Vite 빌드·압축 → 정적 경로 검사 → Pages 배포를 실행합니다. 저장소 전체가 아닌 `dist/`만 업로드하며 인증서·비밀키·로컬 서버는 배포하지 않습니다. 별도 PAT나 Secrets 등록은 필요하지 않습니다.
+
+GitHub에서 최초 1회 설정합니다.
+
+1. [저장소 Settings → Pages](https://github.com/hert7111-max/interaction_kyuho/settings/pages) → **Build and deployment → Source → GitHub Actions**를 선택합니다.
+2. 변경 파일을 커밋하고 `main`에 push합니다. 이미 push한 뒤 Pages를 설정했다면 **Actions → Deploy to GitHub Pages → Run workflow → main**으로 실행합니다.
+3. Actions의 `build`, `deploy` 성공 후 배포 주소를 엽니다. 현재 저장소 기준 예상 주소는 `https://hert7111-max.github.io/interaction_kyuho/`입니다. 카메라 권한을 허용하고, 인앱 브라우저에서 카메라가 차단되면 같은 주소를 일반 브라우저로 엽니다.
+
+저장소에서 Actions 사용이 허용돼 있어야 합니다. Pages 메뉴가 없다면 저장소 공개 여부와 계정 플랜의 Pages 지원을 확인하세요. 기존 `github-pages` 환경에 승인·브랜치 보호 규칙이 있으면 그 규칙에 따라 승인하고 `main` 배포를 허용합니다. 기본 배포 브랜치를 바꿀 경우 workflow의 `push.branches`와 `deploy.if`를 함께 수정합니다.
+
+빌드의 `VITE_BASE_PATH`는 Pages 액션의 `base_path` 출력에서 자동으로 정합니다. 프로젝트 사이트는 `/interaction_kyuho/`, 사용자 사이트나 루트 커스텀 도메인은 `/`를 사용합니다. 로컬 개발과 일반 `npm run build`는 기존 `/`를 유지합니다. 아이콘·스크립트·모델·Worker와 쿼리 기반 예제 메뉴가 이 기본 경로를 따릅니다. 예제 직접 주소는 `https://hert7111-max.github.io/interaction_kyuho/?example=snow`처럼 저장소 경로를 포함합니다.
+
+로컬에서 Pages와 같은 경로로 빌드·검사할 때(macOS/Linux):
+
+```sh
+VITE_BASE_PATH=/interaction_kyuho/ npm run build
+VITE_BASE_PATH=/interaction_kyuho/ npm run check:pages
+```
+
+이후 기존 로컬 프로덕션 서버를 사용하려면 `npm run build`로 `/` 경로 빌드를 다시 생성합니다. GitHub Actions는 자체 환경에서 Pages 빌드를 새로 생성하므로 로컬 `dist/`나 `public/mediapipe/`를 Git에 추가할 필요가 없습니다. `prebuild`가 SDK·WASM을 복사하고 필요한 모델을 내려받습니다. CI 빌드에는 mkcert나 로컬 TLS 인증서가 필요하지 않습니다.
+
+카메라 예제는 정적 배포 대상입니다. 보관된 **콜라텍(`?example=7`)의 실시간 멀티플레이·`/api/info`·`/party` WebSocket은 별도 Node 서버가 필요**하며 GitHub Pages에서는 제공되지 않습니다. 기존 `npm run dev`·`npm start` 서버 기능은 유지합니다.
+
+참고: [Vite의 GitHub Pages 배포 안내](https://vite.dev/guide/static-deploy.html#github-pages), [GitHub Pages의 Actions 배포 설정](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
 ## 로컬 네트워크 HTTPS 개발
 
 개발 서버는 `0.0.0.0`에 바인딩되며 HTTPS와 HMR의 WSS를 함께 사용합니다. 기존 `/party` WebSocket, API, 카메라, 모델 로딩과 예제 메뉴를 유지합니다. `npm start`와 `npm run preview`의 기존 HTTP 프로덕션 서버 동작은 바꾸지 않았습니다.
